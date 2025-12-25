@@ -18,4 +18,18 @@ public:
 
 	TSharedPtr<FUICommandList> PluginCommands;
 	TSharedPtr<FBlend4RealInputProcessor> BlenderInputHandler;
+
+private:
+	/** Called when PIE starts - disables the input processor to avoid crashes */
+	void OnBeginPIE(bool bIsSimulating);
+
+	/** Called when PIE ends - re-enables the input processor if it was enabled before */
+	void OnEndPIE(bool bIsSimulating);
+
+	/** Tracks if the input processor was enabled before PIE started */
+	bool bWasEnabledBeforePIE = false;
+
+	/** Delegate handles for PIE events */
+	FDelegateHandle BeginPIEDelegateHandle;
+	FDelegateHandle EndPIEDelegateHandle;
 };

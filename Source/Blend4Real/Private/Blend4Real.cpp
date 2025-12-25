@@ -5,6 +5,7 @@
 #include "LevelEditor.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "ToolMenus.h"
+#include "Editor.h"
 
 #define LOCTEXT_NAMESPACE "FBlend4RealModule"
 
@@ -35,10 +36,18 @@ void FBlend4RealModule::StartupModule()
 	}
 
 	BlenderInputHandler = MakeShareable(new FBlend4RealInputProcessor());
+
+	// Subscribe to PIE events to disable the input processor during gameplay
+	BeginPIEDelegateHandle = FEditorDelegates::BeginPIE.AddRaw(this, &FBlend4RealModule::OnBeginPIE);
+	EndPIEDelegateHandle = FEditorDelegates::EndPIE.AddRaw(this, &FBlend4RealModule::OnEndPIE);
 }
 
 void FBlend4RealModule::ShutdownModule()
 {
+	// Unsubscribe from PIE events
+	FEditorDelegates::BeginPIE.Remove(BeginPIEDelegateHandle);
+	FEditorDelegates::EndPIE.Remove(EndPIEDelegateHandle);
+
 	// Unregister the input handler
 	if (BlenderInputHandler.IsValid())
 	{
@@ -83,6 +92,30 @@ void FBlend4RealModule::PluginButtonClicked()
 	{
 		BlenderInputHandler->ToggleEnabled();
 	}
+}
+
+void FBlend4RealModule::OnBeginPIE(bool bIsSimulating)
+{
+	// Store current enabled state and disable if enabled
+	if (BlenderInputHandler.IsValid() && BlenderInputHandler->IsEnabled())
+	{
+		bWasEnabledBeforePIE = true;
+		BlenderInputHandler->ToggleEnabled();
+	}
+	else
+	{
+		bWasEnabledBeforePIE = false;
+	}
+}
+
+void FBlend4RealModule::OnEndPIE(bool bIsSimulating)
+{
+	// Re-enable if it was enabled before PIE started
+	if (bWasEnabledBeforePIE && BlenderInputHandler.IsValid() && !BlenderInputHandler->IsEnabled())
+	{
+		BlenderInputHandler->ToggleEnabled();		
+	}
+	bWasEnabledBeforePIE = false;
 }
 
 #undef LOCTEXT_NAMESPACE
