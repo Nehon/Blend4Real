@@ -83,7 +83,7 @@ bool FBlend4RealInputProcessor::HandleKeyDownEvent(FSlateApplication& SlateApp, 
 	if (TransformController->IsTransforming())
 	{
 		// Axis keys
-		ETransformAxis Axis;
+		ETransformAxis::Type Axis;
 		if (Blend4RealUtils::IsAxisKey(InKeyEvent, Axis) && ModMask == 0)
 		{
 			TransformController->SetAxis(Axis);

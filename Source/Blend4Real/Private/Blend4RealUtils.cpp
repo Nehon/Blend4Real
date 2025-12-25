@@ -4,15 +4,14 @@
 #include "LevelEditor.h"
 #include "SLevelViewport.h"
 #include "Engine/Selection.h"
-#include "Slate/SceneViewport.h"
 
 namespace Blend4RealUtils
 {
-	const FColor AxisColors[TransformAxes_Count] = {
+	const FColor AxisColors[ETransformAxis::TransformAxes_Count] = {
 		FColor::Black, FColor::Red, FColor::Green, FColor::Blue, FColor::Red, FColor::Green, FColor::Blue
 	};
 
-	const char* AxisLabels[TransformAxes_Count] = {
+	const char* AxisLabels[ETransformAxis::TransformAxes_Count] = {
 		"None", "X", "Y", "Z", "Local X", "Local Y", "Local Z",
 	};
 
@@ -124,7 +123,6 @@ namespace Blend4RealUtils
 
 		FSceneViewFamily ViewFamily = FSceneViewFamily::ConstructionValues(
 			Viewport, EClient->GetScene(), EClient->EngineShowFlags);
-		MousePos /= EClient->GetDPIScale();
 
 		const FSceneView* Scene = EClient->CalcSceneView(&ViewFamily);
 		if (!Scene)
@@ -159,23 +157,23 @@ namespace Blend4RealUtils
 		return Key == EKeys::G || Key == EKeys::R || Key == EKeys::S;
 	}
 
-	bool IsAxisKey(const FKeyEvent& KeyEvent, ETransformAxis& OutAxis)
+	bool IsAxisKey(const FKeyEvent& KeyEvent, ETransformAxis::Type& OutAxis)
 	{
 		const FKey Key = KeyEvent.GetKey();
 
 		if (Key == EKeys::X)
 		{
-			OutAxis = WorldX;
+			OutAxis = ETransformAxis::WorldX;
 			return true;
 		}
 		if (Key == EKeys::Y)
 		{
-			OutAxis = WorldY;
+			OutAxis = ETransformAxis::WorldY;
 			return true;
 		}
 		if (Key == EKeys::Z)
 		{
-			OutAxis = WorldZ;
+			OutAxis = ETransformAxis::WorldZ;
 			return true;
 		}
 

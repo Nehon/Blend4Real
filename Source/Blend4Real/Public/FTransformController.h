@@ -31,7 +31,7 @@ public:
 	ETransformMode GetCurrentMode() const { return CurrentMode; }
 
 	/** Set the constraint axis for the transform */
-	void SetAxis(ETransformAxis Axis);
+	void SetAxis(ETransformAxis::Type Axis);
 
 	/** Handle numeric input for precise transforms */
 	void HandleNumericInput(const FString& Digit);
@@ -57,7 +57,7 @@ public:
 
 private:
 	/** Get axis direction vector for the given axis */
-	FVector GetAxisVector(ETransformAxis Axis) const;
+	FVector GetAxisVector(ETransformAxis::Type Axis) const;
 
 	/** Compute the transform plane based on current mode and axis */
 	FPlane ComputePlane(const FVector& InitialPos);
@@ -87,7 +87,7 @@ private:
 	bool bIsNumericInput = false;
 	int32 TransactionIndex = -1;
 	ETransformMode CurrentMode = ETransformMode::None;
-	ETransformAxis CurrentAxis = None;
+	ETransformAxis::Type CurrentAxis = ETransformAxis::None;
 	FString NumericBuffer;
 	FTransform TransformPivot;
 	FVector DragInitialProjectedPosition = FVector::ZeroVector;

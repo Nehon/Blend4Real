@@ -36,7 +36,7 @@ void FTransformController::BeginTransform(const ETransformMode Mode)
 
 	bIsTransforming = true;
 	CurrentMode = Mode;
-	CurrentAxis = None;
+	CurrentAxis = ETransformAxis::None;
 	bIsNumericInput = false;
 	NumericBuffer.Empty();
 
@@ -124,19 +124,19 @@ void FTransformController::EndTransform(const bool bApply)
 	ActorsTransformMap.Empty();
 	bIsTransforming = false;
 	CurrentMode = ETransformMode::None;
-	CurrentAxis = None;
+	CurrentAxis = ETransformAxis::None;
 	bIsNumericInput = false;
 	NumericBuffer.Empty();
 
 	ClearVisualization();
 }
 
-void FTransformController::SetAxis(ETransformAxis Axis)
+void FTransformController::SetAxis(ETransformAxis::Type Axis)
 {
 	if (CurrentAxis == Axis || CurrentMode == ETransformMode::Scale)
 	{
 		// Toggle to local axis; Scale is always forced in local space
-		CurrentAxis = static_cast<ETransformAxis>(Axis + 3);
+		CurrentAxis = static_cast<ETransformAxis::Type>(Axis + 3);
 	}
 	else
 	{
@@ -155,10 +155,10 @@ void FTransformController::SetAxis(ETransformAxis Axis)
 
 void FTransformController::HandleNumericInput(const FString& Digit)
 {
-	if (CurrentAxis == None)
+	if (CurrentAxis == ETransformAxis::None)
 	{
 		// Force numerical transform on X if no axis has been defined
-		CurrentAxis = WorldX;
+		CurrentAxis = ETransformAxis::WorldX;
 	}
 	bIsNumericInput = true;
 	NumericBuffer.Append(Digit);
@@ -192,7 +192,7 @@ void FTransformController::ApplyNumericTransform()
 	}
 
 	const float NumericValue = FCString::Atof(*NumericBuffer);
-	TransformSelectedActors(AxisVector, CurrentAxis == WorldZ ? -NumericValue : NumericValue, false);
+	TransformSelectedActors(AxisVector, CurrentAxis == ETransformAxis::WorldZ ? -NumericValue : NumericValue, false);
 
 	UpdateVisualization();
 }
@@ -226,7 +226,7 @@ void FTransformController::UpdateFromMouseMove(const FVector2D& MousePosition, b
 
 	if (CurrentMode == ETransformMode::Scale)
 	{
-		const ETransformAxis Axis = static_cast<ETransformAxis>(CurrentAxis >= LocalX ? CurrentAxis - 3 : CurrentAxis);
+		const ETransformAxis::Type Axis = static_cast<ETransformAxis::Type>(CurrentAxis >= ETransformAxis::LocalX ? CurrentAxis - 3 : CurrentAxis);
 		const float NewDistance = (TransformPivot.GetLocation() - HitLocation).Length();
 		if (InitialScaleDistance < 0.001)
 		{
@@ -239,7 +239,7 @@ void FTransformController::UpdateFromMouseMove(const FVector2D& MousePosition, b
 	}
 
 	// Translation
-	if (CurrentAxis == None)
+	if (CurrentAxis == ETransformAxis::None)
 	{
 		const ULevelEditorViewportSettings* ViewportSettings = GetDefault<ULevelEditorViewportSettings>();
 		const bool Project = ViewportSettings->SnapToSurface.bEnabled && ActorsTransformMap.Array().Num() == 1;
@@ -335,38 +335,38 @@ void FTransformController::ResetTransform(ETransformMode Mode)
 	GEditor->EndTransaction();
 }
 
-FVector FTransformController::GetAxisVector(const ETransformAxis Axis) const
+FVector FTransformController::GetAxisVector(const ETransformAxis::Type Axis) const
 {
 	switch (Axis)
 	{
-	case LocalX:
+	case ETransformAxis::LocalX:
 		if (ActorsTransformMap.Array().Num() == 1)
 		{
 			return ActorsTransformMap.Array()[0].Value.GetRotation().GetForwardVector();
 		}
 	// Fall through to WorldX
-	case WorldX:
+	case ETransformAxis::WorldX:
 		return FVector(1.0, 0.0, 0.0);
 
-	case LocalY:
+	case ETransformAxis::LocalY:
 		if (ActorsTransformMap.Array().Num() == 1)
 		{
 			return ActorsTransformMap.Array()[0].Value.GetRotation().GetRightVector();
 		}
 	// Fall through to WorldY
-	case WorldY:
+	case ETransformAxis::WorldY:
 		return FVector(0.0, 1.0, 0.0);
 
-	case LocalZ:
+	case ETransformAxis::LocalZ:
 		if (ActorsTransformMap.Array().Num() == 1)
 		{
 			return ActorsTransformMap.Array()[0].Value.GetRotation().GetUpVector();
 		}
 	// Fall through to WorldZ
-	case WorldZ:
+	case ETransformAxis::WorldZ:
 		return FVector(0.0, 0.0, 1.0);
 
-	case None:
+	case ETransformAxis::None:
 	default:
 		if (CurrentMode == ETransformMode::Translation)
 		{
@@ -404,9 +404,9 @@ FPlane FTransformController::ComputePlane(const FVector& InitialPos)
 	const FVector Axis = GetAxisVector(CurrentAxis);
 	const float DotVal = abs(FVector::DotProduct(TransformViewDir, Axis));
 
-	if (CurrentMode == ETransformMode::Translation && CurrentAxis != None && DotVal > 0.3 && DotVal <= 0.96)
+	if (CurrentMode == ETransformMode::Translation && CurrentAxis != ETransformAxis::None && DotVal > 0.3 && DotVal <= 0.96)
 	{
-		if (CurrentAxis == WorldZ)
+		if (CurrentAxis == ETransformAxis::WorldZ)
 		{
 			TransformViewDir.Z = 0.0;
 			TransformViewDir = TransformViewDir.GetSafeNormal();
@@ -510,7 +510,7 @@ void FTransformController::TransformSelectedActors(const FVector& Direction, con
 			const float SnappedValue = DoSnap ? (ceilf(Value / SnapAngle) * SnapAngle) : Value;
 			const FQuat DeltaRotation = FQuat(Direction, FMath::DegreesToRadians(-SnappedValue));
 			NewTransform.SetRotation(DeltaRotation * TransformPivot.GetRotation());
-			ShowTransformInfo(FString::Printf(TEXT("%.1f\u00B0"), CurrentAxis == WorldZ ? -SnappedValue : SnappedValue),
+			ShowTransformInfo(FString::Printf(TEXT("%.1f\u00B0"), CurrentAxis == ETransformAxis::WorldZ ? -SnappedValue : SnappedValue),
 			                  CursorPos);
 		}
 		break;
@@ -664,7 +664,7 @@ void FTransformController::UpdateVisualization()
 	}
 
 	// Draw axis constraint line if an axis is selected
-	if (CurrentAxis != None)
+	if (CurrentAxis != ETransformAxis::None)
 	{
 		const FVector DragInitialActorPosition = TransformPivot.GetLocation();
 		const FVector Axis = GetAxisVector(CurrentAxis) * 100000.0;

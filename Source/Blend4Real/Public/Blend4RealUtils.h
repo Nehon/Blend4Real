@@ -11,16 +11,19 @@ struct FKeyEvent;
 /**
  * Transform axis enumeration for constraint operations
  */
-enum ETransformAxis
+namespace ETransformAxis
 {
-	None,
-	WorldX,
-	WorldY,
-	WorldZ,
-	LocalX,
-	LocalY,
-	LocalZ,
-	TransformAxes_Count
+	enum Type
+	{
+		None,
+		WorldX,
+		WorldY,
+		WorldZ,
+		LocalX,
+		LocalY,
+		LocalZ,
+		TransformAxes_Count
+	};
 };
 
 /**
@@ -40,10 +43,10 @@ enum class ETransformMode
 namespace Blend4RealUtils
 {
 	/** Axis colors for visualization (indexed by ETransformAxis) */
-	extern const FColor AxisColors[TransformAxes_Count];
+	extern const FColor AxisColors[ETransformAxis::TransformAxes_Count];
 
 	/** Axis labels for debug output (indexed by ETransformAxis) */
-	extern const char* AxisLabels[TransformAxes_Count];
+	extern const char* AxisLabels[ETransformAxis::TransformAxes_Count];
 
 	/** Get the editor world from the active viewport */
 	UWorld* GetEditorWorld();
@@ -81,7 +84,7 @@ namespace Blend4RealUtils
 	 * @param OutAxis - Output axis if key matches
 	 * @return True if key is an axis key
 	 */
-	bool IsAxisKey(const FKeyEvent& KeyEvent, ETransformAxis& OutAxis);
+	bool IsAxisKey(const FKeyEvent& KeyEvent, ETransformAxis::Type& OutAxis);
 
 	/**
 	 * Check if the key event is a numeric key (0-9, period, minus)
