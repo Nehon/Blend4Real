@@ -72,7 +72,7 @@ Can be toggled on/off anytime via a button in the viewport toolbar.
 ## Configurable Keybindings
 You might be used to blender, but maybe you are using specific bindigns in blender itself.\
 If That's the case you can configure them the same in the plugin settings\
-All keybindings can be customized in **Edit > Project Settings > Plugins > Blend4Real** under the Keybindings categories:
+All keybindings can be customized in **Edit > Editor Preferences > Plugins > Blend4Real** under the Keybindings categories:
 - **Transform**: Begin Translation, Rotation, Scale
 - **Transform Reset**: Reset Translation, Rotation, Scale
 - **Objects**: Duplicate, Delete
