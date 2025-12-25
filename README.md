@@ -84,11 +84,11 @@ The plugin will warn you if you assign conflicting keybindings.
 ## Compatibility
 This plugin compiles against Unreal Engine 5.7.1, but it should be possible to retro compile it to 5.6 if you import it in your project's Plugin folder.
 
-## Feature I'm contemplating implementing, or not.
-In the Docs folder there is a plan (made by the AI assistant) to implement the box selection with LMB+drag. In unreal it's hardcoded to LMB+Ctrl+Shift+Alt.\
-The change is quite involved and add a big amount of code for what woudl just be a key rebing. I figured it was not worth it.\
-Unreal has an experimental InteractiveToolFramework system, that makes me think that all this will drastically change in the future version, and will be a lot more modular than today. I'll revisit then.
-
+## Feature I'm contemplating implementing, or not. 
 - **Restrict tansform on Plane, with shift + axis key**: It's a feature I never use in blender, and that I actually discovered while developing this plugin. I can see how it can be useful, but I'll wait to actually need it to implement it.
 - **Change pivot point for transform**: Having a 3D cursor and being allowed to use median/individual origins or cursor as the center of the transformation. It's useful mostly in mesh eit mode to me, so I'm not sure it would be useful in Unreal.
 - **Status bar at the bottom displaying contextual shortcuts**: It's something quite useful in Blender, but mostly if you're not used to it. if you're there I guess you already know the shortcuts.
+- ~~box selection with LMB+drag~~ :  I decided to not do this one. In unreal it's hardcoded to LMB+Ctrl+Shift+Alt, unfortunately, just remapping it in not possible.\
+  To have this it basicallt needs to be redone from scartch. The change is quite involved and would add a big amount of code for what would just be a key rebind. I figured it was not worth it.\
+  Unreal has an experimental InteractiveToolFramework system, that makes me think that all this will drastically change in the future version, and will be a lot more modular than today. I'll revisit then.
+
