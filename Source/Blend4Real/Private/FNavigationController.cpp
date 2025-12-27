@@ -2,7 +2,7 @@
 #include "Blend4RealUtils.h"
 #include "Blend4RealSettings.h"
 #include "Editor.h"
-#include "LevelEditorViewport.h"
+#include "EditorViewportClient.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Engine/Selection.h"
 
@@ -10,25 +10,14 @@ FNavigationController::FNavigationController()
 {
 }
 
-FLevelEditorViewportClient* FNavigationController::GetViewportClient() const
+FEditorViewportClient* FNavigationController::GetViewportClient() const
 {
-	if (!GEditor)
-	{
-		return nullptr;
-	}
-
-	const FViewport* Viewport = GEditor->GetActiveViewport();
-	if (!Viewport)
-	{
-		return nullptr;
-	}
-
-	return static_cast<FLevelEditorViewportClient*>(Viewport->GetClient());
+	return Blend4RealUtils::GetFocusedViewportClient();
 }
 
 void FNavigationController::BeginOrbit(const FVector2D& MousePosition)
 {
-	const FLevelEditorViewportClient* ViewportClient = GetViewportClient();
+	const FEditorViewportClient* ViewportClient = GetViewportClient();
 	if (!ViewportClient || !ViewportClient->IsPerspective())
 	{
 		return;
@@ -37,9 +26,9 @@ void FNavigationController::BeginOrbit(const FVector2D& MousePosition)
 	bIsOrbiting = true;
 	LastMousePosition = FSlateApplication::Get().GetCursorPos();
 
-	// Store initial camera state
+	// Default orbit pivot: use look-at location if valid, otherwise compute from camera
 	OrbitPivot = ViewportClient->GetLookAtLocation();
-
+	
 	// Get orbit mode from settings
 	const UBlend4RealSettings* Settings = UBlend4RealSettings::Get();
 	const USelection* SelectedActors = GEditor->GetSelectedActors();
@@ -52,12 +41,16 @@ void FNavigationController::BeginOrbit(const FVector2D& MousePosition)
 		{
 			OrbitPivot = Result.Location;
 		}
+		
+		// If no hit, keep the fallback pivot (already set above)
 	}
 	else if (Settings->ShouldOrbitAroundSelection() && SelectedActors && SelectedActors->Num() > 0)
 	{
 		// Override pivot with selection center if something is selected
 		OrbitPivot = Blend4RealUtils::ComputeSelectionPivot().GetLocation();
 	}
+
+	//DrawDebugPoint(ViewportClient->GetWorld(),OrbitPivot,20,FColor::Red,false,10,10);
 }
 
 void FNavigationController::EndOrbit()
@@ -67,7 +60,7 @@ void FNavigationController::EndOrbit()
 
 void FNavigationController::BeginPan()
 {
-	const FLevelEditorViewportClient* ViewportClient = GetViewportClient();
+	const FEditorViewportClient* ViewportClient = GetViewportClient();
 	if (!ViewportClient)
 	{
 		return;
@@ -84,7 +77,7 @@ void FNavigationController::EndPan()
 
 void FNavigationController::UpdateOrbit(const FVector2D& Delta) const
 {
-	FLevelEditorViewportClient* ViewportClient = GetViewportClient();
+	FEditorViewportClient* ViewportClient = GetViewportClient();
 	if (!ViewportClient)
 	{
 		return;
@@ -125,12 +118,13 @@ void FNavigationController::UpdateOrbit(const FVector2D& Delta) const
 	ViewportClient->SetViewLocation(NewLocation);
 	ViewportClient->SetViewRotation(NewRotation);
 
-	GEditor->RedrawLevelEditingViewports();
+	// Invalidate the viewport to trigger a redraw
+	ViewportClient->Invalidate();
 }
 
 void FNavigationController::UpdatePan(const FVector2D& Delta) const
 {
-	FLevelEditorViewportClient* ViewportClient = GetViewportClient();
+	FEditorViewportClient* ViewportClient = GetViewportClient();
 	if (!ViewportClient)
 	{
 		return;
@@ -150,7 +144,8 @@ void FNavigationController::UpdatePan(const FVector2D& Delta) const
 
 	ViewportClient->SetViewLocation(CameraLocation + PanDelta);
 
-	GEditor->RedrawLevelEditingViewports();
+	// Invalidate the viewport to trigger a redraw
+	ViewportClient->Invalidate();
 }
 
 bool FNavigationController::FocusOnMouseHit(const FVector2D& MousePosition) const
@@ -178,7 +173,7 @@ bool FNavigationController::FocusOnMouseHit(const FVector2D& MousePosition) cons
 	Bounds.Min = Result.Location - Extent;
 	Bounds.Max = Result.Location + Extent;
 
-	FLevelEditorViewportClient* ViewportClient = GetViewportClient();
+	FEditorViewportClient* ViewportClient = GetViewportClient();
 	if (ViewportClient)
 	{
 		ViewportClient->FocusViewportOnBox(Bounds);

@@ -66,18 +66,31 @@ void FBlend4RealModule::RegisterMenus()
 {
 	FToolMenuOwnerScoped OwnerScoped(this);
 
-	// Add to the viewport toolbar (near snapping controls)
-	UToolMenu* ToolbarMenu = UToolMenus::Get()->ExtendMenu("LevelEditor.ViewportToolbar");
-	FToolMenuSection& Section = ToolbarMenu->FindOrAddSection("Left");
+	// Toolbar names for all 3D editor viewports
+	static const FName ViewportToolbars[] = {
+		"LevelEditor.ViewportToolbar",
+		"StaticMeshEditor.ViewportToolbar",
+		"AnimationEditor.ViewportToolbar",
+		"MaterialEditor.ViewportToolbar",
+		"SCSEditor.ViewportToolbar"  // Blueprint SCS Editor
+	};
 
-	// Add as a toolbar button
-	FToolMenuEntry& Entry = Section.AddEntry(FToolMenuEntry::InitToolBarButton(
-		FBlend4RealCommands::Get().PluginAction,
-		TAttribute<FText>(),
-		TAttribute<FText>(),
-		FSlateIcon(FBlend4RealStyle::GetStyleSetName(), "Blend4Real.PluginAction")
-	));
-	Entry.SetCommandList(PluginCommands);
+	// Register the toggle button on each toolbar
+	for (const FName& ToolbarName : ViewportToolbars)
+	{
+		if (UToolMenu* ToolbarMenu = UToolMenus::Get()->ExtendMenu(ToolbarName))
+		{
+			FToolMenuSection& Section = ToolbarMenu->FindOrAddSection("Left");
+
+			FToolMenuEntry& Entry = Section.AddEntry(FToolMenuEntry::InitToolBarButton(
+				FBlend4RealCommands::Get().PluginAction,
+				TAttribute<FText>(),
+				TAttribute<FText>(),
+				FSlateIcon(FBlend4RealStyle::GetStyleSetName(), "Blend4Real.PluginAction")
+			));
+			Entry.SetCommandList(PluginCommands);
+		}
+	}
 }
 
 bool FBlend4RealModule::IsBlend4RealEnabled() const

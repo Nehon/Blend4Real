@@ -4,6 +4,7 @@
 #include "InputCoreTypes.h"
 
 class FSceneView;
+class FEditorViewportClient;
 struct FHitResult;
 struct FCollisionQueryParams;
 struct FKeyEvent;
@@ -73,7 +74,7 @@ namespace Blend4RealUtils
 	 * @param Params - Collision query parameters
 	 * @return Hit result from the trace
 	 */
-	FHitResult ProjectToSurface(const FVector& Start, const FVector& Direction, const FCollisionQueryParams& Params);
+	FHitResult ProjectToSurface(const UWorld* World, const FVector& Start, const FVector& Direction, const FCollisionQueryParams& Params);
 
 	/** Check if the key event is a transform key (G/R/S) */
 	bool IsTransformKey(const FKeyEvent& KeyEvent);
@@ -96,4 +97,30 @@ namespace Blend4RealUtils
 
 	/** Mark all selected actors as modified for undo system */
 	void MarkSelectionModified();
+
+	/**
+	 * Check if an editor viewport widget currently has keyboard focus
+	 * @return True if any editor viewport (level, asset, etc.) has focus
+	 */
+	bool IsEditorViewportWidgetFocused();
+
+	/**
+	 * Get the viewport client for the active editor viewport
+	 * Uses GEditor->GetActiveViewport() for reliability
+	 * @return The viewport client, or nullptr if not available
+	 */
+	FEditorViewportClient* GetFocusedViewportClient();
+
+	/**
+	 * Check if the currently focused viewport is a Level Editor viewport
+	 * @return True if a Level Editor viewport has focus
+	 */
+	bool IsLevelEditorViewportFocused();
+
+	/**
+	 * Check if the mouse cursor is over an editor viewport
+	 * @param MousePosition - Screen space position to check
+	 * @return True if mouse is over any editor viewport
+	 */
+	bool IsMouseOverViewport(const FVector2D& MousePosition);
 }

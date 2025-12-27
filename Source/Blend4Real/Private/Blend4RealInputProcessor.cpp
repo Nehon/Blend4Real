@@ -60,6 +60,11 @@ void FBlend4RealInputProcessor::ToggleEnabled()
 	}
 }
 
+bool FBlend4RealInputProcessor::IsViewportFocused() const
+{
+	return Blend4RealUtils::IsEditorViewportWidgetFocused();
+}
+
 void FBlend4RealInputProcessor::Tick(const float DeltaTime, FSlateApplication& SlateApp, TSharedRef<ICursor> Cursor)
 {
 	// Nothing to do - visualization is updated when transform state changes
@@ -68,6 +73,13 @@ void FBlend4RealInputProcessor::Tick(const float DeltaTime, FSlateApplication& S
 bool FBlend4RealInputProcessor::HandleKeyDownEvent(FSlateApplication& SlateApp, const FKeyEvent& InKeyEvent)
 {
 	if (!bIsEnabled)
+	{
+		return false;
+	}
+
+	// Only process input if a viewport widget has focus
+	// Exception: allow input during ongoing transforms (for axis keys, numeric input, etc.)
+	if (!TransformController->IsTransforming() && !IsViewportFocused())
 	{
 		return false;
 	}
@@ -194,6 +206,13 @@ bool FBlend4RealInputProcessor::HandleMouseMoveEvent(FSlateApplication& SlateApp
 	const FVector2D Delta = CurrentPosition - LastMousePosition;
 	LastMousePosition = CurrentPosition;
 
+	// For ongoing operations (navigation/transform), continue processing even if focus moved
+	// This ensures smooth camera movement and transforms when mouse drags outside viewport
+	const bool bInOperation = NavigationController->IsNavigating() || TransformController->IsTransforming();
+	if (!bInOperation && !IsViewportFocused())
+	{
+		return false;
+	}
 
 	// Handle navigation
 	if (NavigationController->IsNavigating())
@@ -233,6 +252,15 @@ bool FBlend4RealInputProcessor::HandleMouseMoveEvent(FSlateApplication& SlateApp
 bool FBlend4RealInputProcessor::HandleMouseButtonDownEvent(FSlateApplication& SlateApp, const FPointerEvent& MouseEvent)
 {
 	if (!bIsEnabled)
+	{
+		return false;
+	}
+
+	const FVector2D MousePosition = MouseEvent.GetScreenSpacePosition();
+
+	// Only process input if mouse is over a viewport
+	// Exception: allow transform confirmation/cancellation during ongoing transforms
+	if (!TransformController->IsTransforming() && !Blend4RealUtils::IsMouseOverViewport(MousePosition))
 	{
 		return false;
 	}
@@ -284,8 +312,16 @@ bool FBlend4RealInputProcessor::HandleMouseButtonDoubleClickEvent(FSlateApplicat
 		return false;
 	}
 
+	const FVector2D MousePosition = MouseEvent.GetScreenSpacePosition();
+
+	// Only process if mouse is over a viewport
+	if (!Blend4RealUtils::IsMouseOverViewport(MousePosition))
+	{
+		return false;
+	}
+
 	// Double-click to focus on hit point
-	return NavigationController->FocusOnMouseHit(FVector2D(MouseEvent.GetScreenSpacePosition()));
+	return NavigationController->FocusOnMouseHit(MousePosition);
 }
 
 bool FBlend4RealInputProcessor::HandleMouseButtonUpEvent(FSlateApplication& SlateApp, const FPointerEvent& MouseEvent)

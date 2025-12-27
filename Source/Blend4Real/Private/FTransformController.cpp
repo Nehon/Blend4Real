@@ -21,6 +21,12 @@ void FTransformController::BeginTransform(const ETransformMode Mode)
 		return;
 	}
 
+	// Transform operations only work in Level Editor viewport
+	if (!Blend4RealUtils::IsLevelEditorViewportFocused())
+	{
+		return;
+	}
+
 	USelection* SelectedActors = GEditor->GetSelectedActors();
 	if (SelectedActors->Num() == 0)
 	{
@@ -246,7 +252,7 @@ void FTransformController::UpdateFromMouseMove(const FVector2D& MousePosition, b
 
 		if (Project)
 		{
-			const FHitResult Result = Blend4RealUtils::ProjectToSurface(
+			const FHitResult Result = Blend4RealUtils::ProjectToSurface(Blend4RealUtils::GetEditorWorld(),
 				RayOrigin, RayDirection, IgnoreSelectionQueryParams);
 			if (Result.IsValidBlockingHit())
 			{
@@ -305,6 +311,12 @@ void FTransformController::UpdateFromMouseMove(const FVector2D& MousePosition, b
 
 void FTransformController::ResetTransform(ETransformMode Mode)
 {
+	// Transform operations only work in Level Editor viewport
+	if (!Blend4RealUtils::IsLevelEditorViewportFocused())
+	{
+		return;
+	}
+
 	GEditor->BeginTransaction(TEXT(""), FText::FromString(TEXT("Reset Transform")), nullptr);
 	Blend4RealUtils::MarkSelectionModified();
 

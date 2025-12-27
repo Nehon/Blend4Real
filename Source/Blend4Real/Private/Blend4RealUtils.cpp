@@ -4,9 +4,15 @@
 #include "LevelEditor.h"
 #include "SLevelViewport.h"
 #include "Engine/Selection.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Slate/SceneViewport.h"
+#include "Widgets/SViewport.h"
 
 namespace Blend4RealUtils
 {
+	// Forward declaration
+	FEditorViewportClient* GetViewportClientAtPosition(const FVector2D& ScreenPosition);
+
 	const FColor AxisColors[ETransformAxis::TransformAxes_Count] = {
 		FColor::Black, FColor::Red, FColor::Green, FColor::Blue, FColor::Red, FColor::Green, FColor::Blue
 	};
@@ -80,46 +86,24 @@ namespace Blend4RealUtils
 
 	FHitResult ScenePickAtPosition(const FVector2D& MousePosition, FVector& OutRayOrigin, FVector& OutRayDirection)
 	{
-		// Check if mouse is actually over the viewport widget
-		FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>("LevelEditor");
-		const TSharedPtr<SLevelViewport> LevelViewport = LevelEditorModule.GetFirstActiveLevelViewport();
-		if (!LevelViewport.IsValid())
+		// Get the viewport client under the mouse position
+		FEditorViewportClient* EClient = GetViewportClientAtPosition(MousePosition);
+		if (EClient == nullptr)
 		{
+			UE_LOG(LogTemp, Display, TEXT("Failed hit: no client"));
 			return FHitResult();
 		}
 
-		// Get the widget cached geometry for bounds checking
-		auto Geometry = LevelViewport->GetCachedGeometry();
-		auto LocalSize = Geometry.GetLocalSize();
-		auto Min = Geometry.LocalToAbsolute(FVector2D(0, 0));
-		auto Max = Geometry.LocalToAbsolute(LocalSize);
-
-		if (MousePosition.X < Min.X || MousePosition.X > Max.X ||
-			MousePosition.Y < Min.Y || MousePosition.Y > Max.Y)
-		{
-			// Mouse is outside the viewport bounds
-			return FHitResult();
-		}
-
-		if (!GEditor)
-		{
-			return FHitResult();
-		}
-
-		FViewport* Viewport = GEditor->GetActiveViewport();
+		FViewport* Viewport = EClient->Viewport;
 		if (!Viewport)
 		{
+			UE_LOG(LogTemp, Display, TEXT("Failed hit: no viewport"));
 			return FHitResult();
 		}
 
+		// Get mouse position relative to this viewport
 		FIntPoint MousePos;
 		Viewport->GetMousePos(MousePos);
-
-		FEditorViewportClient* EClient = static_cast<FEditorViewportClient*>(Viewport->GetClient());
-		if (!EClient)
-		{
-			return FHitResult();
-		}
 
 		FSceneViewFamily ViewFamily = FSceneViewFamily::ConstructionValues(
 			Viewport, EClient->GetScene(), EClient->EngineShowFlags);
@@ -127,6 +111,7 @@ namespace Blend4RealUtils
 		const FSceneView* Scene = EClient->CalcSceneView(&ViewFamily);
 		if (!Scene)
 		{
+			UE_LOG(LogTemp, Display, TEXT("Failed hit: no scene"));
 			return FHitResult();
 		}
 
@@ -134,13 +119,13 @@ namespace Blend4RealUtils
 
 		FCollisionQueryParams Params;
 		Params.bTraceComplex = true;
-		return ProjectToSurface(OutRayOrigin, OutRayDirection, Params);
+		
+		return ProjectToSurface(EClient->GetWorld(),OutRayOrigin, OutRayDirection, Params);
 	}
 
-	FHitResult ProjectToSurface(const FVector& Start, const FVector& Direction, const FCollisionQueryParams& Params)
+	FHitResult ProjectToSurface(const UWorld* World, const FVector& Start, const FVector& Direction, const FCollisionQueryParams& Params)
 	{
 		FHitResult HitResult;
-		const UWorld* World = GetEditorWorld();
 		if (!World)
 		{
 			return HitResult;
@@ -262,5 +247,172 @@ namespace Blend4RealUtils
 				Actor->Modify();
 			}
 		}
+	}
+
+	bool IsEditorViewportWidgetFocused()
+	{
+		if (!FSlateApplication::IsInitialized())
+		{
+			return false;
+		}
+
+		const TSharedPtr<SWidget> FocusedWidget = FSlateApplication::Get().GetKeyboardFocusedWidget();
+		if (!FocusedWidget.IsValid())
+		{
+			return false;
+		}
+
+		// Walk up the widget hierarchy to check if an editor viewport is in the chain
+		// Note: Slate widgets are not UObjects, so we cannot use Unreal's reflection/Cast<> system.
+		// We only check type names and return a bool - no unsafe casting.
+		TSharedPtr<SWidget> CurrentWidget = FocusedWidget;
+		while (CurrentWidget.IsValid())
+		{
+			const FName WidgetType = CurrentWidget->GetType();
+			const FString TypeString = WidgetType.ToString();
+
+			// Check for SEditorViewport or its known subclasses:
+			// - "EditorViewport" matches: SEditorViewport, SAssetEditorViewport, SMaterialEditorViewport, etc.
+			// - "SLevelViewport" is explicit because it doesn't contain "Editor" in its name
+			// Note: SViewport (raw Slate viewport) is NOT an SEditorViewport
+			const bool bIsEditorViewport = TypeString.Contains(TEXT("EditorViewport"))
+				|| TypeString == TEXT("SLevelViewport");
+
+			if (bIsEditorViewport)
+			{
+				return true;
+			}
+			CurrentWidget = CurrentWidget->GetParentWidget();
+		}
+
+		return false;
+	}
+
+	FEditorViewportClient* GetViewportClientAtPosition(const FVector2D& ScreenPosition)
+	{
+		if (!FSlateApplication::IsInitialized())
+		{
+			return nullptr;
+		}
+
+		// Get all visible windows
+		TArray<TSharedRef<SWindow>> VisibleWindows;
+		FSlateApplication::Get().GetAllVisibleWindowsOrdered(VisibleWindows);
+
+		// Use LocateWindowUnderMouse to find the widget path under cursor
+		FWidgetPath PathUnderCursor = FSlateApplication::Get().LocateWindowUnderMouse(
+			ScreenPosition,
+			VisibleWindows,
+			true
+		);
+
+		// First pass: check if there's an editor viewport in the widget path
+		// Only SEditorViewport and its subclasses have FEditorViewportClient
+		// Plain SViewport (e.g., content browser thumbnails) do NOT have FEditorViewportClient
+		bool bHasEditorViewportParent = false;
+		for (int32 i = PathUnderCursor.Widgets.Num() - 1; i >= 0; --i)
+		{
+			const TSharedRef<SWidget>& Widget = PathUnderCursor.Widgets[i].Widget;
+			const FString TypeString = Widget->GetType().ToString();
+
+			// Check for editor viewport types
+			if (TypeString.Contains(TEXT("EditorViewport")) || TypeString == TEXT("SLevelViewport"))
+			{
+				bHasEditorViewportParent = true;
+				break;
+			}
+		}
+
+		if (!bHasEditorViewportParent)
+		{
+			// No editor viewport in path - this is not a valid editor viewport (e.g., thumbnail)
+			return nullptr;
+		}
+
+		// Second pass: find the SViewport and extract the client
+		for (int32 i = PathUnderCursor.Widgets.Num() - 1; i >= 0; --i)
+		{
+			const TSharedRef<SWidget>& Widget = PathUnderCursor.Widgets[i].Widget;
+			const FName WidgetType = Widget->GetType();
+
+			if (WidgetType == FName("SViewport"))
+			{
+				// Found SViewport - get its viewport interface
+				const TSharedRef<SViewport> ViewportWidget = StaticCastSharedRef<SViewport>(Widget);
+				TSharedPtr<ISlateViewport> ViewportInterface = ViewportWidget->GetViewportInterface().Pin();
+
+				if (ViewportInterface.IsValid())
+				{
+					// FSceneViewport implements ISlateViewport and inherits from FViewport
+					// Cast is safe because we verified an editor viewport parent exists
+					FSceneViewport* SceneViewport = static_cast<FSceneViewport*>(ViewportInterface.Get());
+					if (SceneViewport)
+					{
+						FViewportClient* Client = SceneViewport->GetClient();
+						if (Client)
+						{
+							return static_cast<FEditorViewportClient*>(Client);
+						}
+					}
+				}
+			}
+		}
+
+		// No viewport found at this position
+		return nullptr;
+	}
+
+	FEditorViewportClient* GetFocusedViewportClient()
+	{
+		// Get the viewport under the current cursor position
+		if (FSlateApplication::IsInitialized())
+		{
+			const FVector2D CursorPos = FSlateApplication::Get().GetCursorPos();
+			FEditorViewportClient* ViewportClient = GetViewportClientAtPosition(CursorPos);
+			if (ViewportClient)
+			{
+				return ViewportClient;
+			}
+		}
+
+		// Fallback to GEditor's active viewport
+		if (GEditor && GEditor->GetActiveViewport())
+		{
+			return static_cast<FEditorViewportClient*>(GEditor->GetActiveViewport()->GetClient());
+		}
+		return nullptr;
+	}
+
+	bool IsLevelEditorViewportFocused()
+	{
+		if (!FSlateApplication::IsInitialized())
+		{
+			return false;
+		}
+
+		TSharedPtr<SWidget> FocusedWidget = FSlateApplication::Get().GetKeyboardFocusedWidget();
+		if (!FocusedWidget.IsValid())
+		{
+			return false;
+		}
+
+		// Walk up the widget hierarchy to find an SLevelViewport
+		TSharedPtr<SWidget> CurrentWidget = FocusedWidget;
+		while (CurrentWidget.IsValid())
+		{
+			const FName WidgetType = CurrentWidget->GetType();
+			if (WidgetType == FName("SLevelViewport"))
+			{
+				return true;
+			}
+			CurrentWidget = CurrentWidget->GetParentWidget();
+		}
+
+		return false;
+	}
+
+	bool IsMouseOverViewport(const FVector2D& MousePosition)
+	{
+		return GetViewportClientAtPosition(MousePosition) != nullptr;
 	}
 }

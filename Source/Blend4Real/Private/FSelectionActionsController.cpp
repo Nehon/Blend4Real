@@ -18,6 +18,12 @@ void FSelectionActionsController::DuplicateSelectedAndGrab() const
 		return;
 	}
 
+	// Selection actions only work in Level Editor viewport
+	if (!Blend4RealUtils::IsLevelEditorViewportFocused())
+	{
+		return;
+	}
+
 	const USelection* SelectedActors = GEditor->GetSelectedActors();
 	if (!SelectedActors || SelectedActors->Num() == 0)
 	{
@@ -48,6 +54,12 @@ void FSelectionActionsController::DuplicateSelectedAndGrab() const
 void FSelectionActionsController::DeleteSelected()
 {
 	if (!GEditor || !GUnrealEd)
+	{
+		return;
+	}
+
+	// Selection actions only work in Level Editor viewport
+	if (!Blend4RealUtils::IsLevelEditorViewportFocused())
 	{
 		return;
 	}

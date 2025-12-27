@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 
-class FLevelEditorViewportClient;
+class FEditorViewportClient;
 
 /**
  * Handles camera navigation operations: orbit, pan, and focus
@@ -49,8 +49,8 @@ public:
 	void SetLastMousePosition(const FVector2D& Position) { LastMousePosition = Position; }
 
 private:
-	/** Get the current level editor viewport client */
-	FLevelEditorViewportClient* GetViewportClient() const;
+	/** Get the focused editor viewport client */
+	FEditorViewportClient* GetViewportClient() const;
 
 	bool bIsOrbiting = false;
 	bool bIsPanning = false;
