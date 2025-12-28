@@ -33,9 +33,9 @@ namespace ETransformAxis
 enum class ETransformMode
 {
 	None,
-	Translation,  // 'G' key
-	Rotation,     // 'R' key
-	Scale         // 'S' key
+	Translation, // 'G' key
+	Rotation, // 'R' key
+	Scale // 'S' key
 };
 
 /**
@@ -53,7 +53,7 @@ namespace Blend4RealUtils
 	UWorld* GetEditorWorld();
 
 	/** Get the active scene view for raycasting */
-	FSceneView* GetActiveSceneView();
+	FSceneView* GetActiveSceneView(FEditorViewportClient* EClient = nullptr);
 
 	/** Compute the center pivot point of all selected actors */
 	FTransform ComputeSelectionPivot();
@@ -74,7 +74,8 @@ namespace Blend4RealUtils
 	 * @param Params - Collision query parameters
 	 * @return Hit result from the trace
 	 */
-	FHitResult ProjectToSurface(const UWorld* World, const FVector& Start, const FVector& Direction, const FCollisionQueryParams& Params);
+	FHitResult ProjectToSurface(const UWorld* World, const FVector& Start, const FVector& Direction,
+	                            const FCollisionQueryParams& Params);
 
 	/** Check if the key event is a transform key (G/R/S) */
 	bool IsTransformKey(const FKeyEvent& KeyEvent);
@@ -123,4 +124,7 @@ namespace Blend4RealUtils
 	 * @return True if mouse is over any editor viewport
 	 */
 	bool IsMouseOverViewport(const FVector2D& MousePosition);
+
+	/** Get the 3D hit point on a plane from mouse position */
+	FVector GetPlaneHit(const FVector& Normal, float Distance, FVector& RayOrigin, FVector& RayDirection);
 }

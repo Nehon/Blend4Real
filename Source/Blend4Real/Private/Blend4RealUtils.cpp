@@ -30,27 +30,19 @@ namespace Blend4RealUtils
 		return GEditor->GetActiveViewport()->GetClient()->GetWorld();
 	}
 
-	FSceneView* GetActiveSceneView()
+	FSceneView* GetActiveSceneView(FEditorViewportClient* EClient)
 	{
-		if (!GEditor)
-		{
-			return nullptr;
-		}
-
-		const FViewport* Viewport = GEditor->GetActiveViewport();
-		if (!Viewport)
-		{
-			return nullptr;
-		}
-
-		FEditorViewportClient* EClient = static_cast<FEditorViewportClient*>(Viewport->GetClient());
 		if (!EClient)
 		{
-			return nullptr;
+			EClient = GetFocusedViewportClient();
+			if (!EClient)
+			{
+				return nullptr;
+			}
 		}
 
 		FSceneViewFamily ViewFamily = FSceneViewFamily::ConstructionValues(
-			Viewport, EClient->GetScene(), EClient->EngineShowFlags);
+			EClient->Viewport, EClient->GetScene(), EClient->EngineShowFlags);
 		return EClient->CalcSceneView(&ViewFamily);
 	}
 
@@ -119,11 +111,12 @@ namespace Blend4RealUtils
 
 		FCollisionQueryParams Params;
 		Params.bTraceComplex = true;
-		
-		return ProjectToSurface(EClient->GetWorld(),OutRayOrigin, OutRayDirection, Params);
+
+		return ProjectToSurface(EClient->GetWorld(), OutRayOrigin, OutRayDirection, Params);
 	}
 
-	FHitResult ProjectToSurface(const UWorld* World, const FVector& Start, const FVector& Direction, const FCollisionQueryParams& Params)
+	FHitResult ProjectToSurface(const UWorld* World, const FVector& Start, const FVector& Direction,
+	                            const FCollisionQueryParams& Params)
 	{
 		FHitResult HitResult;
 		if (!World)
@@ -414,5 +407,26 @@ namespace Blend4RealUtils
 	bool IsMouseOverViewport(const FVector2D& MousePosition)
 	{
 		return GetViewportClientAtPosition(MousePosition) != nullptr;
+	}
+
+
+	FVector GetPlaneHit(const FVector& Normal, const float Distance, FVector& RayOrigin, FVector& RayDirection)
+	{
+		FEditorViewportClient* EClient = GetFocusedViewportClient();
+		if (!EClient)
+		{
+			return FVector::ZeroVector;
+		}
+		const FSceneView* Scene = GetActiveSceneView(EClient);
+		if (!Scene)
+		{
+			return FVector::ZeroVector;
+		}
+		FIntPoint MousePos;
+		EClient->Viewport->GetMousePos(MousePos);
+		Scene->DeprojectFVector2D(MousePos, RayOrigin, RayDirection);
+
+		const FPlane Plane(Normal.X, Normal.Y, Normal.Z, Distance);
+		return FMath::RayPlaneIntersection(RayOrigin, RayDirection, Plane);
 	}
 }

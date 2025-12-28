@@ -55,7 +55,7 @@ void FTransformController::BeginTransform(const ETransformMode Mode)
 		TransformPivot = Blend4RealUtils::ComputeSelectionPivot();
 		{
 			const FPlane HitPlane = ComputePlane(TransformPivot.GetLocation());
-			DragInitialProjectedPosition = GetPlaneHit(HitPlane.GetNormal(), HitPlane.W);
+			DragInitialProjectedPosition = Blend4RealUtils::GetPlaneHit(HitPlane.GetNormal(), HitPlane.W, RayOrigin, RayDirection);
 		}
 		break;
 	case ETransformMode::Rotation:
@@ -63,7 +63,7 @@ void FTransformController::BeginTransform(const ETransformMode Mode)
 		TransformPivot = Blend4RealUtils::ComputeSelectionPivot();
 		{
 			const FPlane HitPlane = ComputePlane(TransformPivot.GetLocation());
-			DragInitialProjectedPosition = GetPlaneHit(HitPlane.GetNormal(), HitPlane.W);
+			DragInitialProjectedPosition = Blend4RealUtils::GetPlaneHit(HitPlane.GetNormal(), HitPlane.W, RayOrigin, RayDirection);
 			HitLocation = DragInitialProjectedPosition;
 		}
 		break;
@@ -72,7 +72,7 @@ void FTransformController::BeginTransform(const ETransformMode Mode)
 		TransformPivot = Blend4RealUtils::ComputeSelectionPivot();
 		{
 			const FPlane HitPlane = ComputePlane(TransformPivot.GetLocation());
-			DragInitialProjectedPosition = GetPlaneHit(HitPlane.GetNormal(), HitPlane.W);
+			DragInitialProjectedPosition = Blend4RealUtils::GetPlaneHit(HitPlane.GetNormal(), HitPlane.W, RayOrigin, RayDirection);
 			InitialScaleDistance = (DragInitialProjectedPosition - TransformPivot.GetLocation()).Length();
 			HitLocation = DragInitialProjectedPosition;
 		}
@@ -153,7 +153,7 @@ void FTransformController::SetAxis(ETransformAxis::Type Axis)
 
 	// Recompute plane hit for new axis
 	const FPlane HitPlane = ComputePlane(TransformPivot.GetLocation());
-	DragInitialProjectedPosition = GetPlaneHit(HitPlane.GetNormal(), HitPlane.W);
+	DragInitialProjectedPosition = Blend4RealUtils::GetPlaneHit(HitPlane.GetNormal(), HitPlane.W, RayOrigin, RayDirection);
 	TransformSelectedActors(FVector(0.0), 0, false);
 
 	UpdateVisualization();
@@ -211,7 +211,7 @@ void FTransformController::UpdateFromMouseMove(const FVector2D& MousePosition, b
 	}
 
 	const FPlane HitPlane = ComputePlane(TransformPivot.GetLocation());
-	HitLocation = GetPlaneHit(HitPlane.GetNormal(), HitPlane.W);
+	HitLocation = Blend4RealUtils::GetPlaneHit(HitPlane.GetNormal(), HitPlane.W,RayOrigin, RayDirection);
 
 	const FVector AxisVector = GetAxisVector(CurrentAxis);
 
@@ -438,28 +438,6 @@ FPlane FTransformController::ComputePlane(const FVector& InitialPos)
 	return FPlane(Normal, Dist);
 }
 
-FVector FTransformController::GetPlaneHit(const FVector& Normal, const float Distance)
-{
-	FViewport* Viewport = GEditor->GetActiveViewport();
-	if (!Viewport)
-	{
-		return FVector::ZeroVector;
-	}
-
-	FIntPoint MousePos;
-	Viewport->GetMousePos(MousePos);
-
-	FSceneView* Scene = Blend4RealUtils::GetActiveSceneView();
-	if (!Scene)
-	{
-		return FVector::ZeroVector;
-	}
-
-	Scene->DeprojectFVector2D(MousePos, RayOrigin, RayDirection);
-
-	const FPlane Plane(Normal.X, Normal.Y, Normal.Z, Distance);
-	return FMath::RayPlaneIntersection(RayOrigin, RayDirection, Plane);
-}
 
 void FTransformController::ApplyTransform(const FVector& Direction, const float Value, const bool InvertSnapState)
 {

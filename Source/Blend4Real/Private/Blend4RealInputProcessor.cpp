@@ -224,7 +224,7 @@ bool FBlend4RealInputProcessor::HandleMouseMoveEvent(FSlateApplication& SlateApp
 		}
 		if (NavigationController->IsPanning())
 		{
-			NavigationController->UpdatePan(Delta);
+			NavigationController->UpdatePan(CurrentPosition);
 			return true;
 		}
 	}
@@ -272,7 +272,7 @@ bool FBlend4RealInputProcessor::HandleMouseButtonDownEvent(FSlateApplication& Sl
 	{
 		if (UBlend4RealSettings::MatchesChord(Settings->PanCameraKey, MouseEvent))
 		{
-			NavigationController->BeginPan();
+			NavigationController->BeginPan(FVector2D(MouseEvent.GetScreenSpacePosition()));
 			return true;
 		}
 		if (UBlend4RealSettings::MatchesChord(Settings->FocusOnHitKey, MouseEvent))

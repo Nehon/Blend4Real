@@ -62,8 +62,7 @@ private:
 	/** Compute the transform plane based on current mode and axis */
 	FPlane ComputePlane(const FVector& InitialPos);
 
-	/** Get the 3D hit point on a plane from mouse position */
-	FVector GetPlaneHit(const FVector& Normal, float Distance);
+	
 
 	/** Apply transform to all selected actors */
 	void TransformSelectedActors(const FVector& Direction, float Value, bool Snap, bool InvertSnap = false);
