@@ -7,6 +7,8 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Editor.h"
 #include "EditorModeManager.h"
+#include "Misc/ConfigCacheIni.h"
+#include "Misc/CoreDelegates.h"
 
 
 FBlend4RealInputProcessor::FBlend4RealInputProcessor()
@@ -18,7 +20,21 @@ FBlend4RealInputProcessor::FBlend4RealInputProcessor()
 	NavigationController = MakeShareable(new FNavigationController());
 	SelectionActionsController = MakeShareable(new FSelectionActionsController(TransformController));
 
-	RegisterInputProcessor();
+	// Load saved enabled state from global editor settings (stored in user's AppData, not project)
+	GConfig->GetBool(TEXT("Blend4Real"), TEXT("bEnabled"), bIsEnabled, GEditorSettingsIni);
+
+	// Note: We can't call SharedThis() or GLevelEditorModeTools() during construction.
+	// - SharedThis() requires the object to be owned by a shared pointer first
+	// - GLevelEditorModeTools() is too early during module loading
+	// Defer both until after the engine is fully initialized.
+	FCoreDelegates::OnPostEngineInit.AddLambda([this]()
+	{
+		if (bIsEnabled)
+		{
+			GLevelEditorModeTools().SetShowWidget(false);
+			RegisterInputProcessor();
+		}
+	});
 }
 
 FBlend4RealInputProcessor::~FBlend4RealInputProcessor()
@@ -48,6 +64,10 @@ void FBlend4RealInputProcessor::ToggleEnabled()
 	// Toggle transform gizmo visibility (hide when BlenderControls enabled, show when disabled)
 	GLevelEditorModeTools().SetShowWidget(!bIsEnabled);
 	Blend4RealUtils::GetFocusedViewportClient()->Invalidate();
+
+	// Save enabled state to global editor settings (stored in user's AppData, not project)
+	GConfig->SetBool(TEXT("Blend4Real"), TEXT("bEnabled"), bIsEnabled, GEditorSettingsIni);
+	GConfig->Flush(false, GEditorSettingsIni);
 
 	if (bIsEnabled)
 	{
