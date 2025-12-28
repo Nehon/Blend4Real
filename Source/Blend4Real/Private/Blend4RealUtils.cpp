@@ -265,11 +265,17 @@ namespace Blend4RealUtils
 			const FString TypeString = WidgetType.ToString();
 
 			// Check for SEditorViewport or its known subclasses:
-			// - "EditorViewport" matches: SEditorViewport, SAssetEditorViewport, SMaterialEditorViewport, etc.
+			// - "EditorViewport" matches: SEditorViewport, SAssetEditorViewport, SAnimationEditorViewport, etc.
+			// - "PreviewViewport" matches: SMaterialEditor3DPreviewViewport, SNiagaraSimCacheViewport, etc.
+			// - "SystemViewport" matches: SNiagaraSystemViewport
 			// - "SLevelViewport" is explicit because it doesn't contain "Editor" in its name
+			// - "SSCSEditorViewport" matches Blueprint component editor viewport
 			// Note: SViewport (raw Slate viewport) is NOT an SEditorViewport
 			const bool bIsEditorViewport = TypeString.Contains(TEXT("EditorViewport"))
-				|| TypeString == TEXT("SLevelViewport");
+				|| TypeString.Contains(TEXT("PreviewViewport"))
+				|| TypeString.Contains(TEXT("SystemViewport"))
+				|| TypeString == TEXT("SLevelViewport")
+				|| TypeString == TEXT("SSCSEditorViewport");
 
 			if (bIsEditorViewport)
 			{
@@ -309,7 +315,11 @@ namespace Blend4RealUtils
 			const FString TypeString = Widget->GetType().ToString();
 
 			// Check for editor viewport types
-			if (TypeString.Contains(TEXT("EditorViewport")) || TypeString == TEXT("SLevelViewport"))
+			if (TypeString.Contains(TEXT("EditorViewport"))
+				|| TypeString.Contains(TEXT("PreviewViewport"))
+				|| TypeString.Contains(TEXT("SystemViewport"))
+				|| TypeString == TEXT("SLevelViewport")
+				|| TypeString == TEXT("SSCSEditorViewport"))
 			{
 				bHasEditorViewportParent = true;
 				break;

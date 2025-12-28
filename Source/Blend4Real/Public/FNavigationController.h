@@ -52,13 +52,24 @@ private:
 	/** Get the focused editor viewport client */
 	FEditorViewportClient* GetViewportClient() const;
 
+	/** Update orbit for viewports in orbit camera mode (Material Editor, Niagara, etc.) */
+	void UpdateOrbitCameraMode(FEditorViewportClient* ViewportClient, const FVector2D& Delta) const;
+
+	/** Update orbit for viewports in regular camera mode (Level Editor) */
+	void UpdateRegularCameraMode(FEditorViewportClient* ViewportClient, const FVector2D& Delta) const;
+
+	/** Update pan for viewports in orbit camera mode */
+	void UpdatePanOrbitCameraMode(FEditorViewportClient* ViewportClient, const FVector2D& MousePosition);
+
 	bool bIsOrbiting = false;
 	bool bIsPanning = false;
 	bool bPlaneLessPan = false;
+	bool bIsOrbitCameraMode = false;  // True if viewport uses orbit camera (Material Editor, Niagara, etc.)
 	FVector OrbitPivot = FVector::ZeroVector;
 	FVector PanPivot = FVector::ZeroVector;
 	FVector RayOrigin, RayDirection;
 	FVector StartPanCameraLocation = FVector::ZeroVector;
+	FVector StartPanLookAtLocation = FVector::ZeroVector;  // For orbit camera mode pan
 	FVector2D LastMousePosition = FVector2D::ZeroVector;
 	FPlane PanPlane;
 

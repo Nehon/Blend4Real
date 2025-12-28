@@ -47,6 +47,7 @@ void FBlend4RealInputProcessor::ToggleEnabled()
 	bIsEnabled = !bIsEnabled;
 	// Toggle transform gizmo visibility (hide when BlenderControls enabled, show when disabled)
 	GLevelEditorModeTools().SetShowWidget(!bIsEnabled);
+	Blend4RealUtils::GetFocusedViewportClient()->Invalidate();
 
 	if (bIsEnabled)
 	{

@@ -17,7 +17,7 @@ FEditorViewportClient* FNavigationController::GetViewportClient() const
 
 void FNavigationController::BeginOrbit(const FVector2D& MousePosition)
 {
-	const FEditorViewportClient* ViewportClient = GetViewportClient();
+	FEditorViewportClient* ViewportClient = GetViewportClient();
 	if (!ViewportClient || !ViewportClient->IsPerspective())
 	{
 		return;
@@ -25,6 +25,9 @@ void FNavigationController::BeginOrbit(const FVector2D& MousePosition)
 
 	bIsOrbiting = true;
 	LastMousePosition = FSlateApplication::Get().GetCursorPos();
+
+	// Detect if viewport is in orbit camera mode (Material Editor, Niagara, etc.)
+	bIsOrbitCameraMode = ViewportClient->bUsingOrbitCamera;
 
 	// Default orbit pivot: use look-at location if valid, otherwise compute from camera
 	OrbitPivot = ViewportClient->GetLookAtLocation();
@@ -82,6 +85,9 @@ void FNavigationController::BeginPan(const FVector2D& MousePosition)
 	bIsPanning = true;
 	LastMousePosition = FSlateApplication::Get().GetCursorPos();
 
+	// Detect if viewport is in orbit camera mode
+	bIsOrbitCameraMode = ViewportClient->bUsingOrbitCamera;
+
 	const FSceneView* Scene = Blend4RealUtils::GetActiveSceneView(ViewportClient);
 	if (!Scene)
 	{
@@ -96,8 +102,20 @@ void FNavigationController::BeginPan(const FVector2D& MousePosition)
 		// use the picked position to construct the plane
 		PanPivot = Result.Location;
 	}
+
 	// Save the start camera position.
-	StartPanCameraLocation = ViewportClient->GetViewLocation();
+	// In orbit camera mode, GetViewLocation() returns orbit parameters, not actual camera position.
+	// We need to compute the actual camera position from the orbit matrix.
+	if (bIsOrbitCameraMode)
+	{
+		FViewportCameraTransform& ViewTransform = ViewportClient->GetViewTransform();
+		StartPanCameraLocation = ViewTransform.ComputeOrbitMatrix().Inverse().GetOrigin();
+		StartPanLookAtLocation = ViewportClient->GetLookAtLocation();
+	}
+	else
+	{
+		StartPanCameraLocation = ViewportClient->GetViewLocation();
+	}
 	const FVector TransformViewDir = Scene->GetViewDirection().GetSafeNormal();
 
 	// create the plane
@@ -132,9 +150,45 @@ void FNavigationController::UpdateOrbit(const FVector2D& Delta) const
 		return;
 	}
 
-	constexpr float RotationSpeed = 0.25f;
+	if (bIsOrbitCameraMode)
+	{
+		UpdateOrbitCameraMode(ViewportClient, Delta);
+	}
+	else
+	{
+		UpdateRegularCameraMode(ViewportClient, Delta);
+	}
+}
 
-	// Calculate rotation delta
+void FNavigationController::UpdateOrbitCameraMode(FEditorViewportClient* ViewportClient, const FVector2D& Delta) const
+{
+	// In orbit camera mode, ViewLocation/ViewRotation store orbit parameters, not actual camera state.
+	// We modify the rotation and then recompute the location from the orbit matrix.
+	// This matches how UE handles orbit camera input in EditorViewportClient.cpp:2928-2936
+
+	constexpr float RotationSpeed = 0.25f;
+	const float DeltaYaw = -Delta.X * RotationSpeed;  // Inverted to match UE's orbit behavior
+	const float DeltaPitch = -Delta.Y * RotationSpeed;
+
+	FRotator CurrentRotation = ViewportClient->GetViewRotation();
+	CurrentRotation.Yaw += DeltaYaw;
+	CurrentRotation.Pitch = FMath::Clamp(CurrentRotation.Pitch + DeltaPitch, -89.0f, 89.0f);
+
+	ViewportClient->SetViewRotation(CurrentRotation);
+
+	// Recompute location from orbit matrix (this is the key step for orbit camera mode)
+	FViewportCameraTransform& ViewTransform = ViewportClient->GetViewTransform();
+	ViewportClient->SetViewLocation(ViewTransform.ComputeOrbitMatrix().Inverse().GetOrigin());
+
+	ViewportClient->Invalidate();
+}
+
+void FNavigationController::UpdateRegularCameraMode(FEditorViewportClient* ViewportClient, const FVector2D& Delta) const
+{
+	// Regular camera mode: ViewLocation/ViewRotation are the actual camera state.
+	// We orbit around our computed pivot point.
+
+	constexpr float RotationSpeed = 0.25f;
 	const float DeltaYaw = Delta.X * RotationSpeed;
 	const float DeltaPitch = Delta.Y * RotationSpeed;
 
@@ -167,7 +221,6 @@ void FNavigationController::UpdateOrbit(const FVector2D& Delta) const
 	ViewportClient->SetViewLocation(NewLocation);
 	ViewportClient->SetViewRotation(NewRotation);
 
-	// Invalidate the viewport to trigger a redraw
 	ViewportClient->Invalidate();
 }
 
@@ -179,9 +232,15 @@ void FNavigationController::UpdatePan(const FVector2D& MousePosition)
 		return;
 	}
 
+	if (bIsOrbitCameraMode)
+	{
+		UpdatePanOrbitCameraMode(ViewportClient, MousePosition);
+		return;
+	}
+
 	if (bPlaneLessPan)
 	{
-		// if we failed to pick in the scen we do'nt have a plane, we fall back to this constant*speed offset
+		// if we failed to pick in the scene we don't have a plane, we fall back to this constant*speed offset
 		// that's meh, but that's better than stopping the panning when we can't pick
 		const FVector2D Delta = MousePosition - LastMousePosition;
 		LastMousePosition = MousePosition;
@@ -204,7 +263,7 @@ void FNavigationController::UpdatePan(const FVector2D& MousePosition)
 		return;
 	}
 	LastMousePosition = MousePosition;
-	// keep doing that in case we switch to the planeless panning in the middel fo a drag
+	// keep doing that in case we switch to the planeless panning in the middle of a drag
 	// pick with new mouse pos but with start invViewProj
 	Blend4RealUtils::GetActiveSceneView(ViewportClient)->DeprojectScreenToWorld(
 		MousePosition, PanUnscaledViewRect, PanInvViewProjectionMatrix, RayOrigin,
@@ -216,6 +275,61 @@ void FNavigationController::UpdatePan(const FVector2D& MousePosition)
 
 	//DrawDebugLine(ViewportClient->GetWorld(), PanPivot, PlaneHit, FColor::Red, false, 0.1, 1);
 	// Invalidate the viewport to trigger a redraw
+	ViewportClient->Invalidate();
+}
+
+void FNavigationController::UpdatePanOrbitCameraMode(FEditorViewportClient* ViewportClient, const FVector2D& MousePosition)
+{
+	// In orbit camera mode, panning moves both the LookAt point and the camera together,
+	// maintaining the orbit relationship. We use the same plane-based reprojection as regular mode
+	// for precise, distance-aware panning.
+
+	if (bPlaneLessPan)
+	{
+		// Fallback: simple delta-based panning when we couldn't create a plane
+		const FVector2D Delta = MousePosition - LastMousePosition;
+		LastMousePosition = MousePosition;
+
+		if (Delta.IsNearlyZero())
+		{
+			return;
+		}
+
+		FViewportCameraTransform& ViewTransform = ViewportClient->GetViewTransform();
+		const FRotator CameraRotation = ViewTransform.ComputeOrbitMatrix().InverseFast().Rotator();
+		const FVector RightVector = FRotationMatrix(CameraRotation).GetUnitAxis(EAxis::Y);
+		const FVector UpVector = FRotationMatrix(CameraRotation).GetUnitAxis(EAxis::Z);
+
+		const FVector CurrentCameraLocation = ViewTransform.ComputeOrbitMatrix().Inverse().GetOrigin();
+		const FVector LookAt = ViewportClient->GetLookAtLocation();
+		const float DistanceToLookAt = FVector::Dist(CurrentCameraLocation, LookAt);
+		const float PanSpeed = FMath::Max(DistanceToLookAt / 1000.0f, 0.1f);
+
+		const FVector PanDelta = (-RightVector * Delta.X + UpVector * Delta.Y) * PanSpeed;
+		ViewportClient->SetLookAtLocation(LookAt + PanDelta);
+		ViewportClient->SetViewLocation(ViewTransform.ComputeOrbitMatrix().Inverse().GetOrigin());
+		ViewportClient->Invalidate();
+		return;
+	}
+
+	LastMousePosition = MousePosition;
+
+	// Plane-based panning: deproject mouse using the ORIGINAL projection matrix from BeginPan
+	// This ensures the mouse cursor stays over the same world point during the drag
+	Blend4RealUtils::GetActiveSceneView(ViewportClient)->DeprojectScreenToWorld(
+		MousePosition, PanUnscaledViewRect, PanInvViewProjectionMatrix, RayOrigin, RayDirection);
+	const FVector PlaneHit = FMath::RayPlaneIntersection(RayOrigin, RayDirection, PanPlane);
+
+	// Calculate the world-space offset from start
+	const FVector Offset = PlaneHit - PanPivot;
+
+	// Apply the same offset to the LookAt point (moves camera and lookat together)
+	ViewportClient->SetLookAtLocation(StartPanLookAtLocation - Offset);
+
+	// Recompute camera location from orbit matrix after moving LookAt
+	FViewportCameraTransform& ViewTransform = ViewportClient->GetViewTransform();
+	ViewportClient->SetViewLocation(ViewTransform.ComputeOrbitMatrix().Inverse().GetOrigin());
+
 	ViewportClient->Invalidate();
 }
 

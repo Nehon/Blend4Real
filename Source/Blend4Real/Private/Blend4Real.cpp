@@ -72,7 +72,8 @@ void FBlend4RealModule::RegisterMenus()
 		"StaticMeshEditor.ViewportToolbar",
 		"AnimationEditor.ViewportToolbar",
 		"MaterialEditor.ViewportToolbar",
-		"SCSEditor.ViewportToolbar"  // Blueprint SCS Editor
+		"SCSEditor.ViewportToolbar", // Blueprint SCS Editor
+		"NiagaraSystemEditor.ViewportToolbar"
 	};
 
 	// Register the toggle button on each toolbar
@@ -126,7 +127,7 @@ void FBlend4RealModule::OnEndPIE(bool bIsSimulating)
 	// Re-enable if it was enabled before PIE started
 	if (bWasEnabledBeforePIE && BlenderInputHandler.IsValid() && !BlenderInputHandler->IsEnabled())
 	{
-		BlenderInputHandler->ToggleEnabled();		
+		BlenderInputHandler->ToggleEnabled();
 	}
 	bWasEnabledBeforePIE = false;
 }
