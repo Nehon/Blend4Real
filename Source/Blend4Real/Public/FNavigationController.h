@@ -49,7 +49,7 @@ public:
 	void SetLastMousePosition(const FVector2D& Position) { LastMousePosition = Position; }
 
 private:
-	/** Get the focused editor viewport client */
+	/** Get the viewport client - returns captured viewport during navigation, otherwise focused viewport */
 	FEditorViewportClient* GetViewportClient() const;
 
 	/** Update orbit for viewports in orbit camera mode (Material Editor, Niagara, etc.) */
@@ -65,6 +65,7 @@ private:
 	bool bIsPanning = false;
 	bool bPlaneLessPan = false;
 	bool bIsOrbitCameraMode = false;  // True if viewport uses orbit camera (Material Editor, Niagara, etc.)
+	FEditorViewportClient* CapturedViewportClient = nullptr;  // Viewport captured at navigation start
 	FVector OrbitPivot = FVector::ZeroVector;
 	FVector PanPivot = FVector::ZeroVector;
 	FVector RayOrigin, RayDirection;

@@ -12,6 +12,11 @@ FNavigationController::FNavigationController()
 
 FEditorViewportClient* FNavigationController::GetViewportClient() const
 {
+	// During navigation, use the captured viewport to prevent bleeding to other viewports
+	if (CapturedViewportClient && (bIsOrbiting || bIsPanning))
+	{
+		return CapturedViewportClient;
+	}
 	return Blend4RealUtils::GetFocusedViewportClient();
 }
 
@@ -23,6 +28,8 @@ void FNavigationController::BeginOrbit(const FVector2D& MousePosition)
 		return;
 	}
 
+	// Capture the viewport at navigation start to prevent bleeding to other viewports
+	CapturedViewportClient = ViewportClient;
 	bIsOrbiting = true;
 	LastMousePosition = FSlateApplication::Get().GetCursorPos();
 
@@ -58,6 +65,7 @@ void FNavigationController::BeginOrbit(const FVector2D& MousePosition)
 void FNavigationController::EndOrbit()
 {
 	bIsOrbiting = false;
+	CapturedViewportClient = nullptr;
 }
 
 // For Pan we need quite some state information.
@@ -82,6 +90,8 @@ void FNavigationController::BeginPan(const FVector2D& MousePosition)
 		return;
 	}
 
+	// Capture the viewport at navigation start to prevent bleeding to other viewports
+	CapturedViewportClient = ViewportClient;
 	bIsPanning = true;
 	LastMousePosition = FSlateApplication::Get().GetCursorPos();
 
@@ -140,6 +150,7 @@ void FNavigationController::BeginPan(const FVector2D& MousePosition)
 void FNavigationController::EndPan()
 {
 	bIsPanning = false;
+	CapturedViewportClient = nullptr;
 }
 
 void FNavigationController::UpdateOrbit(const FVector2D& Delta) const

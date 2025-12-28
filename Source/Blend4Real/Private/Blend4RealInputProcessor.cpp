@@ -207,6 +207,7 @@ bool FBlend4RealInputProcessor::HandleMouseMoveEvent(FSlateApplication& SlateApp
 	const FVector2D Delta = CurrentPosition - LastMousePosition;
 	LastMousePosition = CurrentPosition;
 
+
 	// For ongoing operations (navigation/transform), continue processing even if focus moved
 	// This ensures smooth camera movement and transforms when mouse drags outside viewport
 	const bool bInOperation = NavigationController->IsNavigating() || TransformController->IsTransforming();

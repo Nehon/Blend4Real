@@ -78,8 +78,9 @@ namespace Blend4RealUtils
 
 	FHitResult ScenePickAtPosition(const FVector2D& MousePosition, FVector& OutRayOrigin, FVector& OutRayDirection)
 	{
-		// Get the viewport client under the mouse position
-		FEditorViewportClient* EClient = GetViewportClientAtPosition(MousePosition);
+		// Get the viewport client and its screen origin
+		FVector2D ViewportScreenOrigin;
+		FEditorViewportClient* EClient = GetViewportClientAndScreenOrigin(MousePosition, ViewportScreenOrigin);
 		if (EClient == nullptr)
 		{
 			UE_LOG(LogTemp, Display, TEXT("Failed hit: no client"));
@@ -93,10 +94,6 @@ namespace Blend4RealUtils
 			return FHitResult();
 		}
 
-		// Get mouse position relative to this viewport
-		FIntPoint MousePos;
-		Viewport->GetMousePos(MousePos);
-
 		FSceneViewFamily ViewFamily = FSceneViewFamily::ConstructionValues(
 			Viewport, EClient->GetScene(), EClient->EngineShowFlags);
 
@@ -106,8 +103,10 @@ namespace Blend4RealUtils
 			UE_LOG(LogTemp, Display, TEXT("Failed hit: no scene"));
 			return FHitResult();
 		}
+		// Convert screen position to viewport-local coordinates using the widget's screen origin
+		const FVector2D LocalMousePos = MousePosition - ViewportScreenOrigin;
 
-		Scene->DeprojectFVector2D(MousePos, OutRayOrigin, OutRayDirection);
+		Scene->DeprojectFVector2D(LocalMousePos, OutRayOrigin, OutRayDirection);
 
 		FCollisionQueryParams Params;
 		Params.bTraceComplex = true;
@@ -287,8 +286,11 @@ namespace Blend4RealUtils
 		return false;
 	}
 
-	FEditorViewportClient* GetViewportClientAtPosition(const FVector2D& ScreenPosition)
+	FEditorViewportClient* GetViewportClientAndScreenOrigin(const FVector2D& ScreenPosition,
+	                                                        FVector2D& OutViewportScreenOrigin)
 	{
+		OutViewportScreenOrigin = FVector2D::ZeroVector;
+
 		if (!FSlateApplication::IsInitialized())
 		{
 			return nullptr;
@@ -335,7 +337,8 @@ namespace Blend4RealUtils
 		// Second pass: find the SViewport and extract the client
 		for (int32 i = PathUnderCursor.Widgets.Num() - 1; i >= 0; --i)
 		{
-			const TSharedRef<SWidget>& Widget = PathUnderCursor.Widgets[i].Widget;
+			const FArrangedWidget& ArrangedWidget = PathUnderCursor.Widgets[i];
+			const TSharedRef<SWidget>& Widget = ArrangedWidget.Widget;
 			const FName WidgetType = Widget->GetType();
 
 			if (WidgetType == FName("SViewport"))
@@ -354,6 +357,8 @@ namespace Blend4RealUtils
 						FViewportClient* Client = SceneViewport->GetClient();
 						if (Client)
 						{
+							// Get the viewport's screen position from the widget geometry
+							OutViewportScreenOrigin = ArrangedWidget.Geometry.GetAbsolutePosition();
 							return static_cast<FEditorViewportClient*>(Client);
 						}
 					}
@@ -363,6 +368,12 @@ namespace Blend4RealUtils
 
 		// No viewport found at this position
 		return nullptr;
+	}
+
+	FEditorViewportClient* GetViewportClientAtPosition(const FVector2D& ScreenPosition)
+	{
+		FVector2D Unused;
+		return GetViewportClientAndScreenOrigin(ScreenPosition, Unused);
 	}
 
 	FEditorViewportClient* GetFocusedViewportClient()

@@ -125,6 +125,14 @@ namespace Blend4RealUtils
 	 */
 	bool IsMouseOverViewport(const FVector2D& MousePosition);
 
+	/**
+	 * Get the viewport client at a screen position along with the viewport's screen origin
+	 * @param ScreenPosition - Screen space position to check
+	 * @param OutViewportScreenOrigin - Output: the viewport's top-left corner in screen space
+	 * @return The viewport client, or nullptr if not over an editor viewport
+	 */
+	FEditorViewportClient* GetViewportClientAndScreenOrigin(const FVector2D& ScreenPosition, FVector2D& OutViewportScreenOrigin);
+
 	/** Get the 3D hit point on a plane from mouse position */
 	FVector GetPlaneHit(const FVector& Normal, float Distance, FVector& RayOrigin, FVector& RayDirection);
 }
