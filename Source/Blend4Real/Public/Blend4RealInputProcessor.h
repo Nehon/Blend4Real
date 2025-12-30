@@ -30,7 +30,7 @@ public:
 	HandleMouseButtonDoubleClickEvent(FSlateApplication& SlateApp, const FPointerEvent& MouseEvent) override;
 	virtual bool HandleMouseButtonUpEvent(FSlateApplication& SlateApp, const FPointerEvent& MouseEvent) override;
 
-	void ToggleEnabled();
+	void ToggleEnabled(const bool bInvalidateRender = true);
 	bool IsEnabled() const { return bIsEnabled; }
 
 private:

@@ -65,12 +65,15 @@ void FBlend4RealInputProcessor::UnregisterInputProcessor()
 	}
 }
 
-void FBlend4RealInputProcessor::ToggleEnabled()
+void FBlend4RealInputProcessor::ToggleEnabled(const bool bInvalidateRender)
 {
 	bIsEnabled = !bIsEnabled;
 	// Toggle transform gizmo visibility (hide when BlenderControls enabled, show when disabled)
 	GLevelEditorModeTools().SetShowWidget(!bIsEnabled);
-	Blend4RealUtils::GetFocusedViewportClient()->Invalidate();
+	if (bInvalidateRender)
+	{
+		Blend4RealUtils::GetFocusedViewportClient()->Invalidate();
+	}
 
 	// Save enabled state to global editor settings (stored in user's AppData, not project)
 	GConfig->SetBool(TEXT("Blend4Real"), TEXT("bEnabled"), bIsEnabled, GEditorSettingsIni);

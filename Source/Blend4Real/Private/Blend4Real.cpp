@@ -127,7 +127,7 @@ void FBlend4RealModule::OnEndPIE(bool bIsSimulating)
 	// Re-enable if it was enabled before PIE started
 	if (bWasEnabledBeforePIE && BlenderInputHandler.IsValid() && !BlenderInputHandler->IsEnabled())
 	{
-		BlenderInputHandler->ToggleEnabled();
+		BlenderInputHandler->ToggleEnabled(false);
 	}
 	bWasEnabledBeforePIE = false;
 }
