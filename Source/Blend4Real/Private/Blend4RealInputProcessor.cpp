@@ -7,6 +7,7 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Editor.h"
 #include "EditorModeManager.h"
+#include "LevelEditor.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/CoreDelegates.h"
 
@@ -20,21 +21,12 @@ FBlend4RealInputProcessor::FBlend4RealInputProcessor()
 	NavigationController = MakeShareable(new FNavigationController());
 	SelectionActionsController = MakeShareable(new FSelectionActionsController(TransformController));
 
-	// Load saved enabled state from global editor settings (stored in user's AppData, not project)
-	GConfig->GetBool(TEXT("Blend4Real"), TEXT("bEnabled"), bIsEnabled, GEditorSettingsIni);
-
 	// Note: We can't call SharedThis() or GLevelEditorModeTools() during construction.
 	// - SharedThis() requires the object to be owned by a shared pointer first
 	// - GLevelEditorModeTools() is too early during module loading
-	// Defer both until after the engine is fully initialized.
-	FCoreDelegates::OnPostEngineInit.AddLambda([this]()
-	{
-		if (bIsEnabled)
-		{
-			GLevelEditorModeTools().SetShowWidget(false);
-			RegisterInputProcessor();
-		}
-	});
+	// Defer both until after the level Editor is fully initialized
+	FLevelEditorModule& LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
+	LevelEditorModule.OnLevelEditorCreated().AddRaw(this, &FBlend4RealInputProcessor::Init);
 }
 
 FBlend4RealInputProcessor::~FBlend4RealInputProcessor()
@@ -48,6 +40,21 @@ void FBlend4RealInputProcessor::RegisterInputProcessor()
 	{
 		FSlateApplication::Get().RegisterInputPreProcessor(SharedThis(this));
 	}
+}
+
+void FBlend4RealInputProcessor::Init(TSharedPtr<ILevelEditor>)
+{
+	// Load saved enabled state from global editor settings (stored in user's AppData, not project)
+	bool bWasEnabled = false;
+	GConfig->GetBool(TEXT("Blend4Real"), TEXT("bEnabled"), bWasEnabled, GEditorSettingsIni);
+	if (bWasEnabled)
+	{
+		// the plugin was enabled when the editor was shit down, we toggle it on.
+		ToggleEnabled();
+	}
+	// clean up level editor callback
+	FLevelEditorModule& LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
+	LevelEditorModule.OnLevelEditorCreated().RemoveAll(this);
 }
 
 void FBlend4RealInputProcessor::UnregisterInputProcessor()

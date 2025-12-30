@@ -23,7 +23,7 @@ public class Blend4Real : ModuleRules
 		PublicDependencyModuleNames.AddRange(
 			new[]
 			{
-				"Core"
+				"Core", "LevelEditor"
 			}
 		);
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "ILevelEditor.h"
 #include "Framework/Application/IInputProcessor.h"
 
 class FNavigationController;
@@ -35,6 +36,7 @@ public:
 private:
 	void RegisterInputProcessor();
 	void UnregisterInputProcessor();
+	void Init(TSharedPtr<ILevelEditor> InLevelEditor);
 
 	/** Check if an editor viewport widget currently has keyboard focus */
 	bool IsViewportFocused() const;
