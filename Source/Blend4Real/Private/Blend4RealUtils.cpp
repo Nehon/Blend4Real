@@ -123,8 +123,8 @@ namespace Blend4RealUtils
 			return HitResult;
 		}
 
-		const FVector End = Start + Direction * 100000.f;
-		World->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, Params);
+		const FVector End = Start + Direction * 1000000.f;
+		World->LineTraceSingleByChannel(HitResult, Start, End, ECC_Camera, Params);
 		return HitResult;
 	}
 
