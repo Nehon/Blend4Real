@@ -2,10 +2,49 @@
 #include "IBlend4RealTransformHandler.h"
 #include "FActorTransformHandler.h"
 #include "FComponentTransformHandler.h"
+#include "FSCSTransformHandler.h"
 #include "Blend4RealUtils.h"
 #include "Editor.h"
 #include "Engine/Selection.h"
 #include "Framework/Application/SlateApplication.h"
+#include "BlueprintEditorModule.h"
+#include "BlueprintEditor.h"
+
+namespace
+{
+	/**
+	 * Find the Blueprint editor that owns the SSCSEditorViewport at the given mouse position.
+	 * Returns nullptr if no matching editor is found.
+	 */
+	TWeakPtr<FBlueprintEditor> FindBlueprintEditorAtPosition(const FVector2D& MousePosition)
+	{
+		// Get the Blueprint editor module
+		FBlueprintEditorModule& BlueprintEditorModule = FModuleManager::LoadModuleChecked<FBlueprintEditorModule>("Kismet");
+
+		// Get all open Blueprint editors
+		TArray<TSharedRef<IBlueprintEditor>> BlueprintEditors = BlueprintEditorModule.GetBlueprintEditors();
+
+		for (const TSharedRef<IBlueprintEditor>& Editor : BlueprintEditors)
+		{
+			// Cast to FBlueprintEditor to access the subobject viewport
+			TSharedRef<FBlueprintEditor> BlueprintEditor = StaticCastSharedRef<FBlueprintEditor>(Editor);
+
+			// Check if this editor has a valid preview actor (indicates SCS editor is active)
+			if (BlueprintEditor->GetPreviewActor() != nullptr)
+			{
+				// Check if this editor has any selected nodes
+				// This helps confirm we're in the right editor
+				TArray<TSharedPtr<FSubobjectEditorTreeNode>> SelectedNodes = BlueprintEditor->GetSelectedSubobjectEditorTreeNodes();
+
+				// For now, return the first editor that has a preview actor
+				// TODO: More precise matching by checking if the viewport widget matches
+				return BlueprintEditor;
+			}
+		}
+
+		return nullptr;
+	}
+}
 
 TSharedPtr<IBlend4RealTransformHandler> FTransformHandlerFactory::CreateHandler()
 {
@@ -30,12 +69,8 @@ TSharedPtr<IBlend4RealTransformHandler> FTransformHandlerFactory::CreateHandler(
 				if (const USceneComponent* Obj = Cast<USceneComponent>(*It))
 				{
 					// Only SceneComponents can be transformed
-					UE_LOG(LogTemp, Display, TEXT("Transform for comp: %s"), *Obj->GetName());
 					bHasSceneComponent = true;
-				}
-				else
-				{
-					UE_LOG(LogTemp, Display, TEXT("Unknown obj for comp: %s"), *It->GetName());
+					break;
 				}
 			}
 			if (bHasSceneComponent)
@@ -51,16 +86,25 @@ TSharedPtr<IBlend4RealTransformHandler> FTransformHandlerFactory::CreateHandler(
 			return MakeShared<FActorTransformHandler>();
 		}
 
-
 		// Nothing selected
 		return nullptr;
 	}
 
-	// TODO: SCS Editor support (requires separate FSCSTransformHandler)
-	// if (Blend4RealUtils::IsSCSEditorViewportFocused())
-	// {
-	//     return MakeShared<FSCSTransformHandler>();
-	// }
+	// SCS Editor: Blueprint component editing
+	if (Blend4RealUtils::IsMouseOverViewport(MousePosition, FName("SSCSEditorViewport")))
+	{
+		TWeakPtr<FBlueprintEditor> BlueprintEditor = FindBlueprintEditorAtPosition(MousePosition);
+		if (BlueprintEditor.IsValid())
+		{
+			TSharedPtr<FSCSTransformHandler> Handler = MakeShared<FSCSTransformHandler>(BlueprintEditor);
+			// Only return if there's actually something selected to transform
+			if (Handler->HasSelection())
+			{
+				return Handler;
+			}
+		}
+		return nullptr;
+	}
 
 	// TODO: Add more viewport types here:
 	// - Animation Editor (bones)
