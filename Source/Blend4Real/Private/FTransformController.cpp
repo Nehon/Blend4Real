@@ -1,5 +1,7 @@
 #include "FTransformController.h"
 #include "Blend4RealUtils.h"
+#include "IBlend4RealTransformHandler.h"
+#include "FTransformHandlerFactory.h"
 #include "Editor.h"
 #include "EditorViewportClient.h"
 #include "Engine/Selection.h"
@@ -9,6 +11,8 @@
 #include "Widgets/SWindow.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Styling/CoreStyle.h"
+
+using namespace Blend4RealUtils;
 
 FTransformController::FTransformController()
 {
@@ -21,15 +25,11 @@ void FTransformController::BeginTransform(const ETransformMode Mode)
 		return;
 	}
 
-	// Transform operations only work in Level Editor viewport
-	if (!Blend4RealUtils::IsLevelEditorViewportFocused())
+	// Get appropriate handler for current viewport context
+	TransformHandler = FTransformHandlerFactory::CreateHandler();
+	if (!TransformHandler || !TransformHandler->HasSelection())
 	{
-		return;
-	}
-
-	USelection* SelectedActors = GEditor->GetSelectedActors();
-	if (SelectedActors->Num() == 0)
-	{
+		TransformHandler.Reset();
 		return;
 	}
 
@@ -46,62 +46,72 @@ void FTransformController::BeginTransform(const ETransformMode Mode)
 	bIsNumericInput = false;
 	NumericBuffer.Empty();
 
-	// Log the mode
+	// Get the mode description text
 	FString ModeText;
 	switch (Mode)
 	{
 	case ETransformMode::Translation:
-		ModeText = TEXT("Move Actors");
-		TransformPivot = Blend4RealUtils::ComputeSelectionPivot();
-		{
-			const FPlane HitPlane = ComputePlane(TransformPivot.GetLocation());
-			DragInitialProjectedPosition = Blend4RealUtils::GetPlaneHit(HitPlane.GetNormal(), HitPlane.W, RayOrigin, RayDirection);
-		}
+		ModeText = TEXT("Move");
 		break;
 	case ETransformMode::Rotation:
-		ModeText = TEXT("Rotate Actors");
-		TransformPivot = Blend4RealUtils::ComputeSelectionPivot();
-		{
-			const FPlane HitPlane = ComputePlane(TransformPivot.GetLocation());
-			DragInitialProjectedPosition = Blend4RealUtils::GetPlaneHit(HitPlane.GetNormal(), HitPlane.W, RayOrigin, RayDirection);
-			HitLocation = DragInitialProjectedPosition;
-		}
+		ModeText = TEXT("Rotate");
 		break;
 	case ETransformMode::Scale:
-		ModeText = TEXT("Scale Actors");
-		TransformPivot = Blend4RealUtils::ComputeSelectionPivot();
-		{
-			const FPlane HitPlane = ComputePlane(TransformPivot.GetLocation());
-			DragInitialProjectedPosition = Blend4RealUtils::GetPlaneHit(HitPlane.GetNormal(), HitPlane.W, RayOrigin, RayDirection);
-			InitialScaleDistance = (DragInitialProjectedPosition - TransformPivot.GetLocation()).Length();
-			HitLocation = DragInitialProjectedPosition;
-		}
+		ModeText = TEXT("Scale");
 		break;
 	default:
-		ModeText = TEXT("Unknown");
+		ModeText = TEXT("Transform");
 		break;
 	}
 
-	// Mark all selected actors as modified
-	TransactionIndex = GEditor->BeginTransaction(TEXT(""), FText::FromString(ModeText), nullptr);
-	ActorsTransformMap.Empty();
+	// Begin transaction and capture initial state
+	TransactionIndex = TransformHandler->BeginTransaction(FText::FromString(ModeText));
+	TransformHandler->CaptureInitialState();
+
+	// Compute pivot and initial picking state
+	TransformPivot = TransformHandler->ComputeSelectionPivot();
+
+	const FPlane HitPlane = ComputePlane(TransformPivot.GetLocation());
+	DragInitialProjectedPosition = GetPlaneHit(HitPlane.GetNormal(), HitPlane.W, RayOrigin,
+	                                           RayDirection);
+
+	HitLocation = DragInitialProjectedPosition;
+	InitialScaleDistance = (DragInitialProjectedPosition - TransformPivot.GetLocation()).Length();
+
+	// Set up collision query params to ignore selected actors (for surface snapping)
 	IgnoreSelectionQueryParams.bTraceComplex = true;
 	IgnoreSelectionQueryParams.ClearIgnoredSourceObjects();
 
-	for (FSelectionIterator It(*SelectedActors); It; ++It)
+	// Add selected actors to ignore list (only works for actor handler, but harmless for others)
+	if (GEditor)
 	{
-		if (AActor* Actor = Cast<AActor>(*It))
+		UE_LOG(LogTemp, Display, TEXT("---------------"));
+		// actors
+		USelection* SelectedActors = GEditor->GetSelectedActors();
+		for (FSelectionIterator It(*SelectedActors); It; ++It)
 		{
-			Actor->Modify();
-			ActorsTransformMap.Add(Actor->GetUniqueID(), Actor->GetActorTransform());
-			IgnoreSelectionQueryParams.AddIgnoredSourceObject(Actor);
+			if (const AActor* Actor = Cast<AActor>(*It))
+			{
+				UE_LOG(LogTemp, Display, TEXT("Selected Actor: %s"), *Actor->GetName());
+				IgnoreSelectionQueryParams.AddIgnoredSourceObject(Actor);
+			}
+		}
+		// // components
+		USelection* SelectedComponents = GEditor->GetSelectedComponents();
+		for (FSelectionIterator It(*SelectedComponents); It; ++It)
+		{
+			if (const UActorComponent* ActorComponent = Cast<UActorComponent>(*It))
+			{
+				UE_LOG(LogTemp, Display, TEXT("Selected Component: %s"), *ActorComponent->GetName());
+				IgnoreSelectionQueryParams.AddIgnoredSourceObject(ActorComponent);
+			}
 		}
 	}
 }
 
 void FTransformController::EndTransform(const bool bApply)
 {
-	if (!bIsTransforming)
+	if (!bIsTransforming || !TransformHandler)
 	{
 		return;
 	}
@@ -116,18 +126,17 @@ void FTransformController::EndTransform(const bool bApply)
 
 	if (!bApply)
 	{
-		// Restore original transforms
-		ApplyTransform(FVector(0.0, 0.0, 0.0), 0);
-		GEditor->CancelTransaction(TransactionIndex);
-		TransactionIndex = -1;
+		// Restore original transforms and cancel transaction
+		TransformHandler->RestoreInitialState();
+		TransformHandler->CancelTransaction(TransactionIndex);
 	}
 	else
 	{
-		GEditor->EndTransaction();
-		TransactionIndex = -1;
+		TransformHandler->EndTransaction();
 	}
 
-	ActorsTransformMap.Empty();
+	TransactionIndex = -1;
+	TransformHandler.Reset();
 	bIsTransforming = false;
 	CurrentMode = ETransformMode::None;
 	CurrentAxis = ETransformAxis::None;
@@ -149,11 +158,12 @@ void FTransformController::SetAxis(ETransformAxis::Type Axis)
 		CurrentAxis = Axis;
 	}
 
-	const FString AxisText = Blend4RealUtils::AxisLabels[CurrentAxis];
+	const FString AxisText = AxisLabels[CurrentAxis];
 
 	// Recompute plane hit for new axis
 	const FPlane HitPlane = ComputePlane(TransformPivot.GetLocation());
-	DragInitialProjectedPosition = Blend4RealUtils::GetPlaneHit(HitPlane.GetNormal(), HitPlane.W, RayOrigin, RayDirection);
+	DragInitialProjectedPosition = GetPlaneHit(HitPlane.GetNormal(), HitPlane.W, RayOrigin,
+	                                           RayDirection);
 	TransformSelectedActors(FVector(0.0), 0, false);
 
 	UpdateVisualization();
@@ -211,7 +221,7 @@ void FTransformController::UpdateFromMouseMove(const FVector2D& MousePosition, b
 	}
 
 	const FPlane HitPlane = ComputePlane(TransformPivot.GetLocation());
-	HitLocation = Blend4RealUtils::GetPlaneHit(HitPlane.GetNormal(), HitPlane.W,RayOrigin, RayDirection);
+	HitLocation = GetPlaneHit(HitPlane.GetNormal(), HitPlane.W, RayOrigin, RayDirection);
 
 	const FVector AxisVector = GetAxisVector(CurrentAxis);
 
@@ -232,7 +242,9 @@ void FTransformController::UpdateFromMouseMove(const FVector2D& MousePosition, b
 
 	if (CurrentMode == ETransformMode::Scale)
 	{
-		const ETransformAxis::Type Axis = static_cast<ETransformAxis::Type>(CurrentAxis >= ETransformAxis::LocalX ? CurrentAxis - 3 : CurrentAxis);
+		const ETransformAxis::Type Axis = static_cast<ETransformAxis::Type>(CurrentAxis >= ETransformAxis::LocalX
+			                                                                    ? CurrentAxis - 3
+			                                                                    : CurrentAxis);
 		const float NewDistance = (TransformPivot.GetLocation() - HitLocation).Length();
 		if (InitialScaleDistance < 0.001)
 		{
@@ -248,12 +260,14 @@ void FTransformController::UpdateFromMouseMove(const FVector2D& MousePosition, b
 	if (CurrentAxis == ETransformAxis::None)
 	{
 		const ULevelEditorViewportSettings* ViewportSettings = GetDefault<ULevelEditorViewportSettings>();
-		const bool Project = ViewportSettings->SnapToSurface.bEnabled && ActorsTransformMap.Array().Num() == 1;
+		const bool Project = ViewportSettings->SnapToSurface.bEnabled && TransformHandler && TransformHandler->
+			GetSelectionCount() == 1;
 
 		if (Project)
 		{
-			const FHitResult Result = Blend4RealUtils::ProjectToSurface(Blend4RealUtils::GetEditorWorld(),
-				RayOrigin, RayDirection, IgnoreSelectionQueryParams);
+			const FHitResult Result = ProjectToSurface(GetEditorWorld(),
+			                                           RayOrigin, RayDirection,
+			                                           IgnoreSelectionQueryParams);
 			if (Result.IsValidBlockingHit())
 			{
 				const bool AlignToNormal = ViewportSettings->SnapToSurface.bSnapRotation;
@@ -294,7 +308,7 @@ void FTransformController::UpdateFromMouseMove(const FVector2D& MousePosition, b
 	}
 	else
 	{
-		const FSceneView* Scene = Blend4RealUtils::GetActiveSceneView();
+		const FSceneView* Scene = GetActiveSceneView();
 		if (!Scene)
 		{
 			return;
@@ -311,68 +325,81 @@ void FTransformController::UpdateFromMouseMove(const FVector2D& MousePosition, b
 
 void FTransformController::ResetTransform(ETransformMode Mode)
 {
-	// Transform operations only work in Level Editor viewport
-	if (!Blend4RealUtils::IsLevelEditorViewportFocused())
+	// Get appropriate handler for current viewport context
+	TSharedPtr<IBlend4RealTransformHandler> ResetHandler = FTransformHandlerFactory::CreateHandler();
+	if (!ResetHandler || !ResetHandler->HasSelection())
 	{
 		return;
 	}
 
-	GEditor->BeginTransaction(TEXT(""), FText::FromString(TEXT("Reset Transform")), nullptr);
-	Blend4RealUtils::MarkSelectionModified();
+	ResetHandler->BeginTransaction(FText::FromString(TEXT("Reset Transform")));
 
 	switch (Mode)
 	{
 	case ETransformMode::Translation:
 		{
 			const FVector Translation(0.0);
-			SetDirectTransformToSelectedActors(&Translation);
+			ResetHandler->SetDirectTransform(&Translation, nullptr, nullptr);
 		}
 		break;
 	case ETransformMode::Rotation:
 		{
 			const FRotator Rotation(0.0);
-			SetDirectTransformToSelectedActors(nullptr, &Rotation);
+			ResetHandler->SetDirectTransform(nullptr, &Rotation, nullptr);
 		}
 		break;
 	case ETransformMode::Scale:
 		{
 			const FVector Scale(1.0);
-			SetDirectTransformToSelectedActors(nullptr, nullptr, &Scale);
+			ResetHandler->SetDirectTransform(nullptr, nullptr, &Scale);
 		}
 		break;
 	default:
 		break;
 	}
 
-	GEditor->EndTransaction();
+	ResetHandler->EndTransaction();
+	// Invalidate the focused viewport to trigger redraw
+	if (FEditorViewportClient* ViewportClient = GetFocusedViewportClient())
+	{
+		ViewportClient->Invalidate();
+	}
 }
 
 FVector FTransformController::GetAxisVector(const ETransformAxis::Type Axis) const
 {
+	// For local axes, get the first selected item's transform (only when single selection)
+	const bool bUseLocalAxis = TransformHandler && TransformHandler->GetSelectionCount() == 1;
+	FTransform FirstItemTransform = FTransform::Identity;
+	if (bUseLocalAxis)
+	{
+		FirstItemTransform = TransformHandler->GetFirstSelectedItemTransform();
+	}
+
 	switch (Axis)
 	{
 	case ETransformAxis::LocalX:
-		if (ActorsTransformMap.Array().Num() == 1)
+		if (bUseLocalAxis)
 		{
-			return ActorsTransformMap.Array()[0].Value.GetRotation().GetForwardVector();
+			return FirstItemTransform.GetRotation().GetForwardVector();
 		}
 	// Fall through to WorldX
 	case ETransformAxis::WorldX:
 		return FVector(1.0, 0.0, 0.0);
 
 	case ETransformAxis::LocalY:
-		if (ActorsTransformMap.Array().Num() == 1)
+		if (bUseLocalAxis)
 		{
-			return ActorsTransformMap.Array()[0].Value.GetRotation().GetRightVector();
+			return FirstItemTransform.GetRotation().GetRightVector();
 		}
 	// Fall through to WorldY
 	case ETransformAxis::WorldY:
 		return FVector(0.0, 1.0, 0.0);
 
 	case ETransformAxis::LocalZ:
-		if (ActorsTransformMap.Array().Num() == 1)
+		if (bUseLocalAxis)
 		{
-			return ActorsTransformMap.Array()[0].Value.GetRotation().GetUpVector();
+			return FirstItemTransform.GetRotation().GetUpVector();
 		}
 	// Fall through to WorldZ
 	case ETransformAxis::WorldZ:
@@ -386,7 +413,7 @@ FVector FTransformController::GetAxisVector(const ETransformAxis::Type Axis) con
 		}
 		if (CurrentMode == ETransformMode::Rotation)
 		{
-			const UWorld* World = Blend4RealUtils::GetEditorWorld();
+			const UWorld* World = GetEditorWorld();
 			if (World == nullptr)
 			{
 				return FVector(0.0, 0.0, 0.0);
@@ -406,7 +433,7 @@ FVector FTransformController::GetAxisVector(const ETransformAxis::Type Axis) con
 
 FPlane FTransformController::ComputePlane(const FVector& InitialPos)
 {
-	const FSceneView* Scene = Blend4RealUtils::GetActiveSceneView();
+	const FSceneView* Scene = GetActiveSceneView();
 	if (!Scene)
 	{
 		return FPlane(FVector::UpVector, 0.0);
@@ -416,7 +443,8 @@ FPlane FTransformController::ComputePlane(const FVector& InitialPos)
 	const FVector Axis = GetAxisVector(CurrentAxis);
 	const float DotVal = abs(FVector::DotProduct(TransformViewDir, Axis));
 
-	if (CurrentMode == ETransformMode::Translation && CurrentAxis != ETransformAxis::None && DotVal > 0.3 && DotVal <= 0.96)
+	if (CurrentMode == ETransformMode::Translation && CurrentAxis != ETransformAxis::None && DotVal > 0.3 && DotVal <=
+		0.96)
 	{
 		if (CurrentAxis == ETransformAxis::WorldZ)
 		{
@@ -451,7 +479,7 @@ void FTransformController::ApplyTransform(const FVector& Direction, const float 
 void FTransformController::TransformSelectedActors(const FVector& Direction, const float Value, const bool Snap,
                                                    const bool InvertSnap)
 {
-	if (!GEditor)
+	if (!GEditor || !TransformHandler)
 	{
 		return;
 	}
@@ -462,7 +490,7 @@ void FTransformController::TransformSelectedActors(const FVector& Direction, con
 	const bool IsSnapScEnabled = InvertSnap ? !ViewportSettings->SnapScaleEnabled : ViewportSettings->SnapScaleEnabled;
 	const FVector2D CursorPos = FSlateApplication::Get().GetCursorPos();
 
-	FTransform NewTransform = TransformPivot;
+	FTransform NewPivotTransform = TransformPivot;
 
 	switch (CurrentMode)
 	{
@@ -480,7 +508,7 @@ void FTransformController::TransformSelectedActors(const FVector& Direction, con
 					                                   ceilf(Translation.Z / GridSize) * GridSize)
 				                                   : Translation;
 
-			NewTransform.SetLocation(NewTransform.GetLocation() + SnappedTranslation);
+			NewPivotTransform.SetLocation(NewPivotTransform.GetLocation() + SnappedTranslation);
 			if (Value != 0.0)
 			{
 				ShowTransformInfo(FString::Printf(TEXT("%.1f"), SnappedValue), CursorPos);
@@ -492,16 +520,18 @@ void FTransformController::TransformSelectedActors(const FVector& Direction, con
 		{
 			if (Direction.IsNearlyZero())
 			{
-				NewTransform.SetRotation(TransformPivot.GetRotation());
+				NewPivotTransform.SetRotation(TransformPivot.GetRotation());
 				break;
 			}
 			const bool DoSnap = IsSnapRtEnabled && Snap;
 			const float SnapAngle = GEditor->GetRotGridSize().Yaw;
 			const float SnappedValue = DoSnap ? (ceilf(Value / SnapAngle) * SnapAngle) : Value;
 			const FQuat DeltaRotation = FQuat(Direction, FMath::DegreesToRadians(-SnappedValue));
-			NewTransform.SetRotation(DeltaRotation * TransformPivot.GetRotation());
-			ShowTransformInfo(FString::Printf(TEXT("%.1f\u00B0"), CurrentAxis == ETransformAxis::WorldZ ? -SnappedValue : SnappedValue),
-			                  CursorPos);
+			NewPivotTransform.SetRotation(DeltaRotation * TransformPivot.GetRotation());
+			ShowTransformInfo(
+				FString::Printf(
+					TEXT("%.1f\u00B0"), CurrentAxis == ETransformAxis::WorldZ ? -SnappedValue : SnappedValue),
+				CursorPos);
 		}
 		break;
 
@@ -509,13 +539,13 @@ void FTransformController::TransformSelectedActors(const FVector& Direction, con
 		{
 			if (Value == 0.0)
 			{
-				NewTransform.SetScale3D(TransformPivot.GetScale3D());
+				NewPivotTransform.SetScale3D(TransformPivot.GetScale3D());
 				break;
 			}
 			const bool DoSnap = IsSnapScEnabled && Snap;
 			const float ScaleSnapValue = GEditor->GetScaleGridSize();
 			const float SnappedValue = DoSnap ? (ceilf(Value / ScaleSnapValue) * ScaleSnapValue) : Value;
-			NewTransform.SetScale3D(Direction * (SnappedValue - 1.0) + 1.0);
+			NewPivotTransform.SetScale3D(Direction * (SnappedValue - 1.0) + 1.0);
 			ShowTransformInfo(FString::Printf(TEXT("x %.2f"), SnappedValue), CursorPos);
 		}
 		break;
@@ -524,24 +554,8 @@ void FTransformController::TransformSelectedActors(const FVector& Direction, con
 		break;
 	}
 
-	// Apply the new transform to selected actors
-	USelection* SelectedActors = GEditor->GetSelectedActors();
-	for (FSelectionIterator It(*SelectedActors); It; ++It)
-	{
-		if (AActor* Actor = Cast<AActor>(*It))
-		{
-			FTransform ActorTransform = ActorsTransformMap[Actor->GetUniqueID()];
-
-			// Cancel the pivot transform and multiply by the new transform
-			ActorTransform = ActorTransform * TransformPivot.Inverse();
-			ActorTransform = ActorTransform * NewTransform;
-
-			if (!ActorTransform.ContainsNaN())
-			{
-				Actor->SetActorTransform(ActorTransform, false, nullptr, ETeleportType::None);
-			}
-		}
-	}
+	// Apply the new pivot transform to selection via handler
+	TransformHandler->ApplyTransformAroundPivot(TransformPivot, NewPivotTransform);
 
 	GEditor->RedrawLevelEditingViewports();
 }
@@ -549,27 +563,12 @@ void FTransformController::TransformSelectedActors(const FVector& Direction, con
 void FTransformController::SetDirectTransformToSelectedActors(const FVector* Location, const FRotator* Rotation,
                                                               const FVector* Scale)
 {
-	if (!GEditor)
+	if (!TransformHandler)
 	{
 		return;
 	}
 
-	USelection* SelectedActors = GEditor->GetSelectedActors();
-	for (FSelectionIterator It(*SelectedActors); It; ++It)
-	{
-		if (AActor* Actor = Cast<AActor>(*It))
-		{
-			FTransform ActorTransform = Actor->GetActorTransform();
-			ActorTransform.SetLocation(Location ? *Location : ActorTransform.GetLocation());
-			ActorTransform.SetRotation(Rotation ? Rotation->Quaternion() : ActorTransform.GetRotation());
-			ActorTransform.SetScale3D(Scale ? *Scale : ActorTransform.GetScale3D());
-
-			if (!ActorTransform.ContainsNaN())
-			{
-				Actor->SetActorTransform(ActorTransform, false, nullptr, ETeleportType::None);
-			}
-		}
-	}
+	TransformHandler->SetDirectTransform(Location, Rotation, Scale);
 }
 
 void FTransformController::ShowTransformInfo(const FString& Text, const FVector2D& ScreenPosition)
@@ -611,15 +610,20 @@ void FTransformController::HideTransformInfo()
 
 void FTransformController::UpdateVisualization()
 {
-	if (!bIsTransforming)
+	if (!bIsTransforming || !TransformHandler)
 	{
 		return;
 	}
 
-	// Get or cache the line batcher
+	// Get or cache the line batcher from the appropriate world
 	if (!LineBatcher)
 	{
-		UWorld* World = Blend4RealUtils::GetEditorWorld();
+		// Use handler's world if available (e.g., preview scene), otherwise use editor world
+		UWorld* World = TransformHandler->GetVisualizationWorld();
+		if (!World)
+		{
+			World = GetEditorWorld();
+		}
 		if (!World)
 		{
 			return;
@@ -661,18 +665,29 @@ void FTransformController::UpdateVisualization()
 		LineBatcher->DrawLine(
 			DragInitialActorPosition - Axis,
 			DragInitialActorPosition + Axis,
-			FLinearColor(Blend4RealUtils::AxisColors[CurrentAxis]),
+			FLinearColor(AxisColors[CurrentAxis]),
 			SDPG_Foreground, 2.0f, 0.0f, TRANSFORM_BATCH_ID);
 	}
 
-	GEditor->RedrawLevelEditingViewports();
+	// Invalidate the focused viewport to trigger redraw
+	if (FEditorViewportClient* ViewportClient = GetFocusedViewportClient())
+	{
+		ViewportClient->Invalidate();
+	}
 }
 
-void FTransformController::ClearVisualization() const
+void FTransformController::ClearVisualization()
 {
 	if (LineBatcher)
 	{
 		LineBatcher->ClearBatch(TRANSFORM_BATCH_ID);
-		GEditor->RedrawLevelEditingViewports();
+		// Reset the cached line batcher so next transform uses the correct world
+		LineBatcher = nullptr;
+	}
+
+	// Invalidate the focused viewport to trigger redraw
+	if (FEditorViewportClient* ViewportClient = GetFocusedViewportClient())
+	{
+		ViewportClient->Invalidate();
 	}
 }

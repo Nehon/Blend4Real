@@ -38,9 +38,6 @@ private:
 	void UnregisterInputProcessor();
 	void Init(TSharedPtr<ILevelEditor> InLevelEditor);
 
-	/** Check if an editor viewport widget currently has keyboard focus */
-	bool IsViewportFocused() const;
-
 	bool bIsEnabled = false;
 	FVector2D LastMousePosition = FVector2D::ZeroVector;
 

@@ -41,7 +41,10 @@ public class Blend4Real : ModuleRules
 				"Projects",
 				"ToolMenus",
 				"EditorInteractiveToolsFramework",
-				"DeveloperSettings"
+				"DeveloperSettings",
+				"Kismet",
+				"SubobjectEditor",
+				"SubobjectDataInterface"
 			}
 		);
 

@@ -88,10 +88,6 @@ void FBlend4RealInputProcessor::ToggleEnabled()
 	}
 }
 
-bool FBlend4RealInputProcessor::IsViewportFocused() const
-{
-	return Blend4RealUtils::IsEditorViewportWidgetFocused();
-}
 
 void FBlend4RealInputProcessor::Tick(const float DeltaTime, FSlateApplication& SlateApp, TSharedRef<ICursor> Cursor)
 {
@@ -105,9 +101,11 @@ bool FBlend4RealInputProcessor::HandleKeyDownEvent(FSlateApplication& SlateApp, 
 		return false;
 	}
 
-	// Only process input if a viewport widget has focus
+	// Only process input if mouse is over a viewport (not requiring keyboard focus)
+	// This allows transforms to be initiated after selecting components in the outliner
 	// Exception: allow input during ongoing transforms (for axis keys, numeric input, etc.)
-	if (!TransformController->IsTransforming() && !IsViewportFocused())
+	const FVector2D MousePosition = SlateApp.GetCursorPos();
+	if (!TransformController->IsTransforming() && !Blend4RealUtils::IsMouseOverViewport(MousePosition))
 	{
 		return false;
 	}
@@ -235,10 +233,10 @@ bool FBlend4RealInputProcessor::HandleMouseMoveEvent(FSlateApplication& SlateApp
 	LastMousePosition = CurrentPosition;
 
 
-	// For ongoing operations (navigation/transform), continue processing even if focus moved
+	// For ongoing operations (navigation/transform), continue processing even if mouse moves outside viewport
 	// This ensures smooth camera movement and transforms when mouse drags outside viewport
 	const bool bInOperation = NavigationController->IsNavigating() || TransformController->IsTransforming();
-	if (!bInOperation && !IsViewportFocused())
+	if (!bInOperation && !Blend4RealUtils::IsMouseOverViewport(CurrentPosition))
 	{
 		return false;
 	}

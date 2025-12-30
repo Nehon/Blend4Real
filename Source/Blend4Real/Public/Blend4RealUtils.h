@@ -55,7 +55,7 @@ namespace Blend4RealUtils
 	/** Get the active scene view for raycasting */
 	FSceneView* GetActiveSceneView(FEditorViewportClient* EClient = nullptr);
 
-	/** Compute the center pivot point of all selected actors */
+	/** Compute the center pivot point of all selected actors or components*/
 	FTransform ComputeSelectionPivot();
 
 	/**
@@ -119,19 +119,31 @@ namespace Blend4RealUtils
 	bool IsLevelEditorViewportFocused();
 
 	/**
+	 * Check if the currently focused viewport is a Blueprint SCS Editor viewport
+	 * @return True if a Blueprint SCS Editor viewport has focus
+	 */
+	bool IsSCSEditorViewportFocused();
+
+	/**
 	 * Check if the mouse cursor is over an editor viewport
 	 * @param MousePosition - Screen space position to check
-	 * @return True if mouse is over any editor viewport
+	 * @param ViewportTypeFilter - Optional: specific viewport type to match (e.g., "SLevelViewport").
+	 *                             If NAME_None, matches any editor viewport type.
+	 * @return True if mouse is over a matching editor viewport
 	 */
-	bool IsMouseOverViewport(const FVector2D& MousePosition);
+	bool IsMouseOverViewport(const FVector2D& MousePosition, const FName& ViewportTypeFilter = NAME_None);
 
 	/**
 	 * Get the viewport client at a screen position along with the viewport's screen origin
 	 * @param ScreenPosition - Screen space position to check
 	 * @param OutViewportScreenOrigin - Output: the viewport's top-left corner in screen space
-	 * @return The viewport client, or nullptr if not over an editor viewport
+	 * @param ViewportTypeFilter - Optional: specific viewport type to match (e.g., "SLevelViewport").
+	 *                             If NAME_None, matches any editor viewport type.
+	 * @return The viewport client, or nullptr if not over a matching editor viewport
 	 */
-	FEditorViewportClient* GetViewportClientAndScreenOrigin(const FVector2D& ScreenPosition, FVector2D& OutViewportScreenOrigin);
+	FEditorViewportClient* GetViewportClientAndScreenOrigin(const FVector2D& ScreenPosition,
+	                                                        FVector2D& OutViewportScreenOrigin,
+	                                                        const FName& ViewportTypeFilter = NAME_None);
 
 	/** Get the 3D hit point on a plane from mouse position */
 	FVector GetPlaneHit(const FVector& Normal, float Distance, FVector& RayOrigin, FVector& RayDirection);

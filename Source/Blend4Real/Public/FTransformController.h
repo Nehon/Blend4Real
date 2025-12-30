@@ -7,6 +7,7 @@
 class ULineBatchComponent;
 class SWindow;
 class STextBlock;
+class IBlend4RealTransformHandler;
 
 static constexpr uint32 TRANSFORM_BATCH_ID = 14521274;
 
@@ -79,7 +80,7 @@ private:
 	void ShowTransformInfo(const FString& Text, const FVector2D& ScreenPosition);
 	void HideTransformInfo();
 	void UpdateVisualization();
-	void ClearVisualization() const;
+	void ClearVisualization();
 
 	// State
 	bool bIsTransforming = false;
@@ -93,9 +94,11 @@ private:
 	FVector HitLocation = FVector::ZeroVector;
 	FVector TransformViewDir = FVector::ZeroVector;
 	float InitialScaleDistance = 0.f;
-	TMap<uint32, FTransform> ActorsTransformMap;
 	FLinearColor OriginalSelectionColor = FLinearColor::Black;
 	FCollisionQueryParams IgnoreSelectionQueryParams;
+
+	/** Current transform handler - determines how transforms are applied to selection */
+	TSharedPtr<IBlend4RealTransformHandler> TransformHandler;
 
 	// Ray state (updated during GetPlaneHit)
 	FVector RayOrigin = FVector::ZeroVector;

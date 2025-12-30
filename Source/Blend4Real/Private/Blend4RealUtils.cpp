@@ -11,7 +11,17 @@
 namespace Blend4RealUtils
 {
 	// Forward declaration
-	FEditorViewportClient* GetViewportClientAtPosition(const FVector2D& ScreenPosition);
+	FEditorViewportClient* GetViewportClientAtPosition(const FVector2D& ScreenPosition, const FName& ViewportTypeFilter = NAME_None);
+
+	// Helper to check if a widget type string matches any editor viewport pattern
+	bool IsEditorViewportType(const FString& TypeString)
+	{
+		return TypeString.Contains(TEXT("EditorViewport"))
+			|| TypeString.Contains(TEXT("PreviewViewport"))
+			|| TypeString.Contains(TEXT("SystemViewport"))
+			|| TypeString == TEXT("SLevelViewport")
+			|| TypeString == TEXT("SSCSEditorViewport");
+	}
 
 	const FColor AxisColors[ETransformAxis::TransformAxes_Count] = {
 		FColor::Black, FColor::Red, FColor::Green, FColor::Blue, FColor::Red, FColor::Green, FColor::Blue
@@ -58,13 +68,28 @@ namespace Blend4RealUtils
 		int Count = 0;
 		FTransform Transform = FTransform();
 
-		for (FSelectionIterator It(*SelectedActors); It; ++It)
+		if (SelectedActors->Num() > 0)
 		{
-			if (const AActor* Actor = Cast<AActor>(*It))
+			for (FSelectionIterator It(*SelectedActors); It; ++It)
 			{
-				FTransform ActorTransform = Actor->GetActorTransform();
-				Center += ActorTransform.GetLocation();
-				Count++;
+				if (const AActor* Actor = Cast<AActor>(*It))
+				{
+					Center += Actor->GetActorLocation();
+					Count++;
+				}
+			}
+		}
+		else
+		{
+			// No selected actors, we try to find selected components
+			USelection* SelectedComponents = GEditor->GetSelectedComponents();
+			for (FSelectionIterator It(*SelectedComponents); It; ++It)
+			{
+				if (const USceneComponent* Component = Cast<USceneComponent>(*It))
+				{
+					Center += Component->GetComponentLocation();
+					Count++;
+				}
 			}
 		}
 
@@ -255,28 +280,11 @@ namespace Blend4RealUtils
 		}
 
 		// Walk up the widget hierarchy to check if an editor viewport is in the chain
-		// Note: Slate widgets are not UObjects, so we cannot use Unreal's reflection/Cast<> system.
-		// We only check type names and return a bool - no unsafe casting.
 		TSharedPtr<SWidget> CurrentWidget = FocusedWidget;
 		while (CurrentWidget.IsValid())
 		{
-			const FName WidgetType = CurrentWidget->GetType();
-			const FString TypeString = WidgetType.ToString();
-
-			// Check for SEditorViewport or its known subclasses:
-			// - "EditorViewport" matches: SEditorViewport, SAssetEditorViewport, SAnimationEditorViewport, etc.
-			// - "PreviewViewport" matches: SMaterialEditor3DPreviewViewport, SNiagaraSimCacheViewport, etc.
-			// - "SystemViewport" matches: SNiagaraSystemViewport
-			// - "SLevelViewport" is explicit because it doesn't contain "Editor" in its name
-			// - "SSCSEditorViewport" matches Blueprint component editor viewport
-			// Note: SViewport (raw Slate viewport) is NOT an SEditorViewport
-			const bool bIsEditorViewport = TypeString.Contains(TEXT("EditorViewport"))
-				|| TypeString.Contains(TEXT("PreviewViewport"))
-				|| TypeString.Contains(TEXT("SystemViewport"))
-				|| TypeString == TEXT("SLevelViewport")
-				|| TypeString == TEXT("SSCSEditorViewport");
-
-			if (bIsEditorViewport)
+			const FString TypeString = CurrentWidget->GetType().ToString();
+			if (IsEditorViewportType(TypeString))
 			{
 				return true;
 			}
@@ -287,7 +295,8 @@ namespace Blend4RealUtils
 	}
 
 	FEditorViewportClient* GetViewportClientAndScreenOrigin(const FVector2D& ScreenPosition,
-	                                                        FVector2D& OutViewportScreenOrigin)
+	                                                        FVector2D& OutViewportScreenOrigin,
+	                                                        const FName& ViewportTypeFilter)
 	{
 		OutViewportScreenOrigin = FVector2D::ZeroVector;
 
@@ -310,18 +319,25 @@ namespace Blend4RealUtils
 		// First pass: check if there's an editor viewport in the widget path
 		// Only SEditorViewport and its subclasses have FEditorViewportClient
 		// Plain SViewport (e.g., content browser thumbnails) do NOT have FEditorViewportClient
+		// If a filter is specified, only match that specific viewport type
 		bool bHasEditorViewportParent = false;
 		for (int32 i = PathUnderCursor.Widgets.Num() - 1; i >= 0; --i)
 		{
 			const TSharedRef<SWidget>& Widget = PathUnderCursor.Widgets[i].Widget;
-			const FString TypeString = Widget->GetType().ToString();
+			const FName WidgetType = Widget->GetType();
+			const FString TypeString = WidgetType.ToString();
 
-			// Check for editor viewport types
-			if (TypeString.Contains(TEXT("EditorViewport"))
-				|| TypeString.Contains(TEXT("PreviewViewport"))
-				|| TypeString.Contains(TEXT("SystemViewport"))
-				|| TypeString == TEXT("SLevelViewport")
-				|| TypeString == TEXT("SSCSEditorViewport"))
+			// If filter specified, check for exact match
+			if (!ViewportTypeFilter.IsNone())
+			{
+				if (WidgetType == ViewportTypeFilter)
+				{
+					bHasEditorViewportParent = true;
+					break;
+				}
+			}
+			// Otherwise check for any editor viewport type
+			else if (IsEditorViewportType(TypeString))
 			{
 				bHasEditorViewportParent = true;
 				break;
@@ -330,7 +346,7 @@ namespace Blend4RealUtils
 
 		if (!bHasEditorViewportParent)
 		{
-			// No editor viewport in path - this is not a valid editor viewport (e.g., thumbnail)
+			// No matching editor viewport in path
 			return nullptr;
 		}
 
@@ -370,10 +386,10 @@ namespace Blend4RealUtils
 		return nullptr;
 	}
 
-	FEditorViewportClient* GetViewportClientAtPosition(const FVector2D& ScreenPosition)
+	FEditorViewportClient* GetViewportClientAtPosition(const FVector2D& ScreenPosition, const FName& ViewportTypeFilter)
 	{
 		FVector2D Unused;
-		return GetViewportClientAndScreenOrigin(ScreenPosition, Unused);
+		return GetViewportClientAndScreenOrigin(ScreenPosition, Unused, ViewportTypeFilter);
 	}
 
 	FEditorViewportClient* GetFocusedViewportClient()
@@ -425,9 +441,38 @@ namespace Blend4RealUtils
 		return false;
 	}
 
-	bool IsMouseOverViewport(const FVector2D& MousePosition)
+
+	bool IsSCSEditorViewportFocused()
 	{
-		return GetViewportClientAtPosition(MousePosition) != nullptr;
+		if (!FSlateApplication::IsInitialized())
+		{
+			return false;
+		}
+
+		TSharedPtr<SWidget> FocusedWidget = FSlateApplication::Get().GetKeyboardFocusedWidget();
+		if (!FocusedWidget.IsValid())
+		{
+			return false;
+		}
+
+		// Walk up the widget hierarchy to find an SSCSEditorViewport
+		TSharedPtr<SWidget> CurrentWidget = FocusedWidget;
+		while (CurrentWidget.IsValid())
+		{
+			const FName WidgetType = CurrentWidget->GetType();
+			if (WidgetType == FName("SSCSEditorViewport"))
+			{
+				return true;
+			}
+			CurrentWidget = CurrentWidget->GetParentWidget();
+		}
+
+		return false;
+	}
+
+	bool IsMouseOverViewport(const FVector2D& MousePosition, const FName& ViewportTypeFilter)
+	{
+		return GetViewportClientAtPosition(MousePosition, ViewportTypeFilter) != nullptr;
 	}
 
 
