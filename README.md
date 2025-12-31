@@ -85,8 +85,7 @@ The plugin will warn you if you assign conflicting keybindings.
 ## Compatibility
 This plugin compiles against Unreal Engine 5.7.1, but it should be possible to retro compile it to 5.6 if you import it in your project's Plugin folder.
 
-## Feature I'm contemplating implementing, or not. 
-- **Restrict tansform on Plane, with shift + axis key**: It's a feature I never use in blender, and that I actually discovered while developing this plugin. I can see how it can be useful, but I'll wait to actually need it to implement it.
+## Feature I'm contemplating implementing, or not.
 - **Change pivot point for transform**: Having a 3D cursor and being allowed to use median/individual origins or cursor as the center of the transformation. It's useful mostly in mesh eit mode to me, so I'm not sure it would be useful in Unreal.
 - **Status bar at the bottom displaying contextual shortcuts**: It's something quite useful in Blender, but mostly if you're not used to it. if you're there I guess you already know the shortcuts.
 - ~~box selection with LMB+drag~~ :  I decided to not do this one. In unreal it's hardcoded to LMB+Ctrl+Shift+Alt, unfortunately, just remapping it in not possible.\
