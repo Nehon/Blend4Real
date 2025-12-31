@@ -35,7 +35,7 @@ FTransform FComponentTransformHandler::GetFirstSelectedItemTransform() const
 
 	if (USceneComponent* Component = Selection->GetTop<USceneComponent>())
 	{
-		return Component->GetComponentTransform();
+		return InitialTransforms[Component->GetUniqueID()];
 	}
 
 	return FTransform::Identity;

@@ -11,7 +11,8 @@
 namespace Blend4RealUtils
 {
 	// Forward declaration
-	FEditorViewportClient* GetViewportClientAtPosition(const FVector2D& ScreenPosition, const FName& ViewportTypeFilter = NAME_None);
+	FEditorViewportClient* GetViewportClientAtPosition(const FVector2D& ScreenPosition,
+	                                                   const FName& ViewportTypeFilter = NAME_None);
 
 	// Helper to check if a widget type string matches any editor viewport pattern
 	bool IsEditorViewportType(const FString& TypeString)
@@ -28,7 +29,8 @@ namespace Blend4RealUtils
 	};
 
 	const char* AxisLabels[ETransformAxis::TransformAxes_Count] = {
-		"None", "X", "Y", "Z", "Local X", "Local Y", "Local Z",
+		"None", "X", "Y", "Z", "Local X", "Local Y", "Local Z", "X Plane", "Y Plane", "Z Plane", "Local X Plane",
+		"Local Y Plane", "Local Z Plane",
 	};
 
 	UWorld* GetEditorWorld()
@@ -159,23 +161,24 @@ namespace Blend4RealUtils
 		return Key == EKeys::G || Key == EKeys::R || Key == EKeys::S;
 	}
 
-	bool IsAxisKey(const FKeyEvent& KeyEvent, ETransformAxis::Type& OutAxis)
+	bool IsAxisKey(const FKeyEvent& KeyEvent, const EModifierKey::Type Modifiers, ETransformAxis::Type& OutAxis)
 	{
 		const FKey Key = KeyEvent.GetKey();
+		const bool bShift = Modifiers == EModifierKey::Shift;
 
 		if (Key == EKeys::X)
 		{
-			OutAxis = ETransformAxis::WorldX;
+			OutAxis = bShift ? ETransformAxis::WorldXPlane : ETransformAxis::WorldX;
 			return true;
 		}
 		if (Key == EKeys::Y)
 		{
-			OutAxis = ETransformAxis::WorldY;
+			OutAxis = bShift ? ETransformAxis::WorldYPlane : ETransformAxis::WorldY;
 			return true;
 		}
 		if (Key == EKeys::Z)
 		{
-			OutAxis = ETransformAxis::WorldZ;
+			OutAxis = bShift ? ETransformAxis::WorldZPlane : ETransformAxis::WorldZ;
 			return true;
 		}
 

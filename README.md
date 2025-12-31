@@ -15,15 +15,16 @@ So if you want an extra feature, you'll have to implement it yourself, and optio
 ## Blender-Style Features
 
 ### Object Manipulation
-| Action | Key | Description |
-|--------|-----|-------------|
-| **Grab (Translate)** | `G` | Begin moving selected objects |
-| **Rotate** | `R` | Begin rotating selected objects |
-| **Scale** | `S` | Begin scaling selected objects |
-| **Axis Constraint** | `X` / `Y` / `Z` | Constrain transform to world axis (press twice for local axis) |
-| **Confirm Transform** | `Left Click` or `Enter` | Apply the transformation |
-| **Cancel Transform** | `Right Click` or `Escape` | Cancel and revert to original transform |
-| **Numeric Input** | `0-9`, `.`, `-` | Type exact values during transform |
+| Action                | Key                                     | Description                                                      |
+|-----------------------|-----------------------------------------|------------------------------------------------------------------|
+| **Grab (Translate)**  | `G`                                     | Begin moving selected objects                                    |
+| **Rotate**            | `R`                                     | Begin rotating selected objects                                  |
+| **Scale**             | `S`                                     | Begin scaling selected objects                                   |
+| **Axis Constraint**   | `X` / `Y` / `Z`                         | Constrain transform to world axis (press twice for local axis)   |
+| **Plane Constraint**  | `Shift + X` / `Shift + Y` / `Shift + Z` | Constrain transform to world plane (press twice for local plane) |
+| **Confirm Transform** | `Left Click` or `Enter`                 | Apply the transformation                                         |
+| **Cancel Transform**  | `Right Click` or `Escape`               | Cancel and revert to original transform                          |
+| **Numeric Input**     | `0-9`, `.`, `-`                         | Type exact values during transform                               |
 
 ### Transform Reset
 | Action | Key | Description |

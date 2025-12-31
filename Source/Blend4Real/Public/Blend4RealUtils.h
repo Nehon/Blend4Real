@@ -23,6 +23,12 @@ namespace ETransformAxis
 		LocalX,
 		LocalY,
 		LocalZ,
+		WorldXPlane, // A plane representer by (XAxis, 0): movement constrained in both Y and Z axis. 
+		WorldYPlane, // A plane representer by (YAxis, 0): movement constrained in both X and Z axis. 
+		WorldZPlane, // A plane representer by (ZAxis, 0): movement constrained in both X and Y axis.
+		LocalXPlane, // Same as WorldXPlane but local to the selection
+		LocalYPlane, // Same as WorldYPlane but local to the selection
+		LocalZPlane, // Same as WorldZPlane but local to the selection
 		TransformAxes_Count
 	};
 };
@@ -86,7 +92,7 @@ namespace Blend4RealUtils
 	 * @param OutAxis - Output axis if key matches
 	 * @return True if key is an axis key
 	 */
-	bool IsAxisKey(const FKeyEvent& KeyEvent, ETransformAxis::Type& OutAxis);
+	bool IsAxisKey(const FKeyEvent& KeyEvent, const EModifierKey::Type Modifiers, ETransformAxis::Type& OutAxis);
 
 	/**
 	 * Check if the key event is a numeric key (0-9, period, minus)

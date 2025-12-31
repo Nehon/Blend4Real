@@ -125,7 +125,7 @@ bool FBlend4RealInputProcessor::HandleKeyDownEvent(FSlateApplication& SlateApp, 
 	{
 		// Axis keys
 		ETransformAxis::Type Axis;
-		if (Blend4RealUtils::IsAxisKey(InKeyEvent, Axis) && ModMask == 0)
+		if (Blend4RealUtils::IsAxisKey(InKeyEvent, ModMask, Axis) && (ModMask == 0 || ModMask == EModifierKey::Shift))
 		{
 			TransformController->SetAxis(Axis);
 			return true;

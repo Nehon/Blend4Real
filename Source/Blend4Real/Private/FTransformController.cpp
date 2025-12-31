@@ -85,14 +85,12 @@ void FTransformController::BeginTransform(const ETransformMode Mode)
 	// Add selected actors to ignore list (only works for actor handler, but harmless for others)
 	if (GEditor)
 	{
-		UE_LOG(LogTemp, Display, TEXT("---------------"));
 		// actors
 		USelection* SelectedActors = GEditor->GetSelectedActors();
 		for (FSelectionIterator It(*SelectedActors); It; ++It)
 		{
 			if (const AActor* Actor = Cast<AActor>(*It))
 			{
-				UE_LOG(LogTemp, Display, TEXT("Selected Actor: %s"), *Actor->GetName());
 				IgnoreSelectionQueryParams.AddIgnoredSourceObject(Actor);
 			}
 		}
@@ -157,7 +155,6 @@ void FTransformController::SetAxis(ETransformAxis::Type Axis)
 	{
 		CurrentAxis = Axis;
 	}
-
 	const FString AxisText = AxisLabels[CurrentAxis];
 
 	// Recompute plane hit for new axis
@@ -257,7 +254,7 @@ void FTransformController::UpdateFromMouseMove(const FVector2D& MousePosition, b
 	}
 
 	// Translation
-	if (CurrentAxis == ETransformAxis::None)
+	if (CurrentAxis == ETransformAxis::None || CurrentAxis >= ETransformAxis::WorldXPlane)
 	{
 		const ULevelEditorViewportSettings* ViewportSettings = GetDefault<ULevelEditorViewportSettings>();
 		const bool Project = ViewportSettings->SnapToSurface.bEnabled && TransformHandler && TransformHandler->
@@ -308,6 +305,7 @@ void FTransformController::UpdateFromMouseMove(const FVector2D& MousePosition, b
 	}
 	else
 	{
+		// single axis transform
 		const FSceneView* Scene = GetActiveSceneView();
 		if (!Scene)
 		{
@@ -323,7 +321,7 @@ void FTransformController::UpdateFromMouseMove(const FVector2D& MousePosition, b
 	UpdateVisualization();
 }
 
-void FTransformController::ResetTransform(ETransformMode Mode)
+void FTransformController::ResetTransform(const ETransformMode Mode) const
 {
 	// Get appropriate handler for current viewport context
 	TSharedPtr<IBlend4RealTransformHandler> ResetHandler = FTransformHandlerFactory::CreateHandler();
@@ -405,6 +403,54 @@ FVector FTransformController::GetAxisVector(const ETransformAxis::Type Axis) con
 	case ETransformAxis::WorldZ:
 		return FVector(0.0, 0.0, 1.0);
 
+	// For planes, only translation and Scale make sense. For rotation, we use the normal axis of the plane for the axis
+	// Meaning that rotating on Z plane is equivalent to rotating on Z axis.
+	// X Plane
+	case ETransformAxis::LocalXPlane:
+		if (bUseLocalAxis)
+		{
+			return CurrentMode == ETransformMode::Rotation
+				       ? FirstItemTransform.GetRotation().GetForwardVector()
+				       : (FirstItemTransform.GetRotation().GetRightVector() + FirstItemTransform.GetRotation().
+					       GetUpVector()).GetSafeNormal();
+		}
+	// Fall through to WorldXPlane
+	case ETransformAxis::WorldXPlane:
+		return CurrentMode == ETransformMode::Rotation
+			       ? FVector(1.0, 0.0, 0.0)
+			       : FVector(0.0, 1.0, 1.0).GetSafeNormal();
+
+	//Y Plane	
+	case ETransformAxis::LocalYPlane:
+		if (bUseLocalAxis)
+		{
+			return CurrentMode == ETransformMode::Rotation
+				       ? FirstItemTransform.GetRotation().GetRightVector()
+				       : (FirstItemTransform.GetRotation().GetForwardVector() + FirstItemTransform.GetRotation().
+					       GetUpVector()).GetSafeNormal();
+		}
+	// Fall through to WorldYPlane
+	case ETransformAxis::WorldYPlane:
+		return CurrentMode == ETransformMode::Rotation
+			       ? FVector(0.0, 1.0, 0.0)
+			       : FVector(1.0, 0.0, 1.0).GetSafeNormal();
+
+	//Z Plane	
+	case ETransformAxis::LocalZPlane:
+		if (bUseLocalAxis)
+		{
+			return CurrentMode == ETransformMode::Rotation
+				       ? FirstItemTransform.GetRotation().GetUpVector()
+				       : (FirstItemTransform.GetRotation().GetForwardVector() + FirstItemTransform.GetRotation().
+					       GetRightVector()).GetSafeNormal();
+		}
+	// Fall through to WorldZPlane
+	case ETransformAxis::WorldZPlane:
+		return CurrentMode == ETransformMode::Rotation
+			       ? FVector(0.0, 0.0, 1.0)
+			       : FVector(1.0, 1.0, 0.0).GetSafeNormal();
+
+	// No Axis (camera aligned)	
 	case ETransformAxis::None:
 	default:
 		if (CurrentMode == ETransformMode::Translation)
@@ -442,7 +488,26 @@ FPlane FTransformController::ComputePlane(const FVector& InitialPos)
 	TransformViewDir = Scene->GetViewDirection().GetSafeNormal();
 	const FVector Axis = GetAxisVector(CurrentAxis);
 	const float DotVal = abs(FVector::DotProduct(TransformViewDir, Axis));
-
+	FVector Normal = TransformViewDir;
+	if (CurrentMode == ETransformMode::Translation && CurrentAxis >= ETransformAxis::WorldXPlane)
+	{
+		switch (CurrentAxis)
+		{
+		case ETransformAxis::WorldXPlane: return FPlane(FVector::UnitX(), TransformPivot.GetLocation().X);
+		case ETransformAxis::WorldYPlane: return FPlane(FVector::UnitY(), TransformPivot.GetLocation().Y);
+		case ETransformAxis::WorldZPlane: return FPlane(FVector::UnitZ(), TransformPivot.GetLocation().Z);
+		case ETransformAxis::LocalXPlane:
+			Normal = -TransformHandler->GetFirstSelectedItemTransform().GetRotation().GetForwardVector();
+			break;
+		case ETransformAxis::LocalYPlane:
+			Normal = -TransformHandler->GetFirstSelectedItemTransform().GetRotation().GetRightVector();
+			break;
+		case ETransformAxis::LocalZPlane:
+			Normal = -TransformHandler->GetFirstSelectedItemTransform().GetRotation().GetUpVector();
+			break;
+		default: return FPlane(FVector::UnitZ(), 0);
+		}
+	}
 	if (CurrentMode == ETransformMode::Translation && CurrentAxis != ETransformAxis::None && DotVal > 0.3 && DotVal <=
 		0.96)
 	{
@@ -452,17 +517,17 @@ FPlane FTransformController::ComputePlane(const FVector& InitialPos)
 			TransformViewDir = TransformViewDir.GetSafeNormal();
 			const FPlane ZeroPlane(TransformViewDir, 0.0);
 			const float Dist = FMath::RayPlaneIntersectionParam(InitialPos, TransformViewDir, ZeroPlane);
-			const FVector Normal = -TransformViewDir;
+			Normal = -TransformViewDir;
 			return FPlane(Normal, Dist);
 		}
 		const float Dist = TransformPivot.GetLocation().Z;
-		const FVector Normal(0.0, 0.0, 1.0);
+		Normal = FVector::UnitZ();
 		return FPlane(Normal, Dist);
 	}
 
-	const FPlane ZeroPlane(TransformViewDir, 0.0);
+	const FPlane ZeroPlane(Normal, 0.0);
 	const float Dist = FMath::RayPlaneIntersectionParam(InitialPos, TransformViewDir, ZeroPlane);
-	const FVector Normal = -TransformViewDir;
+	Normal = -Normal;
 	return FPlane(Normal, Dist);
 }
 
@@ -561,7 +626,7 @@ void FTransformController::TransformSelectedActors(const FVector& Direction, con
 }
 
 void FTransformController::SetDirectTransformToSelectedActors(const FVector* Location, const FRotator* Rotation,
-                                                              const FVector* Scale)
+                                                              const FVector* Scale) const
 {
 	if (!TransformHandler)
 	{
@@ -661,12 +726,88 @@ void FTransformController::UpdateVisualization()
 	if (CurrentAxis != ETransformAxis::None)
 	{
 		const FVector DragInitialActorPosition = TransformPivot.GetLocation();
-		const FVector Axis = GetAxisVector(CurrentAxis) * 100000.0;
-		LineBatcher->DrawLine(
-			DragInitialActorPosition - Axis,
-			DragInitialActorPosition + Axis,
-			FLinearColor(AxisColors[CurrentAxis]),
-			SDPG_Foreground, 2.0f, 0.0f, TRANSFORM_BATCH_ID);
+
+		if (CurrentAxis < ETransformAxis::WorldXPlane)
+		{
+			const FVector Axis = GetAxisVector(CurrentAxis) * 100000.0;
+			LineBatcher->DrawLine(
+				DragInitialActorPosition - Axis,
+				DragInitialActorPosition + Axis,
+				FLinearColor(AxisColors[CurrentAxis]),
+				SDPG_Foreground, 2.0f, 0.0f, TRANSFORM_BATCH_ID);
+		}
+		else
+		{
+			// plane transform : Switch on Axis
+			const bool bUseLocalAxis = TransformHandler && TransformHandler->GetSelectionCount() == 1
+				&& CurrentAxis > ETransformAxis::WorldZPlane;
+			FTransform FirstItemTransform = FTransform::Identity;
+			FVector Axis1, Axis2;
+			FLinearColor Color1, Color2;
+			if (bUseLocalAxis)
+			{
+				FirstItemTransform = TransformHandler->GetFirstSelectedItemTransform();
+			}
+			switch (CurrentAxis)
+			{
+			// X
+			case ETransformAxis::LocalXPlane:
+				Axis1 = FirstItemTransform.GetRotation().GetRightVector();
+				Axis2 = FirstItemTransform.GetRotation().GetUpVector();
+			case ETransformAxis::WorldXPlane:
+				if (!bUseLocalAxis)
+				{
+					Axis1 = FVector::UnitY();
+					Axis2 = FVector::UnitZ();
+				}
+				Color1 = AxisColors[ETransformAxis::LocalY];
+				Color2 = AxisColors[ETransformAxis::LocalZ];
+				break;
+			// Y
+			case ETransformAxis::LocalYPlane:
+				Axis1 = FirstItemTransform.GetRotation().GetForwardVector();
+				Axis2 = FirstItemTransform.GetRotation().GetUpVector();
+			case ETransformAxis::WorldYPlane:
+				if (!bUseLocalAxis)
+				{
+					Axis1 = FVector::UnitX();
+					Axis2 = FVector::UnitZ();
+				}
+				Color1 = AxisColors[ETransformAxis::LocalX];
+				Color2 = AxisColors[ETransformAxis::LocalZ];
+
+				break;
+			// Z			
+			case ETransformAxis::LocalZPlane:
+				Axis1 = FirstItemTransform.GetRotation().GetForwardVector();
+				Axis2 = FirstItemTransform.GetRotation().GetRightVector();
+			case ETransformAxis::WorldZPlane:
+				if (!bUseLocalAxis)
+				{
+					Axis1 = FVector::UnitX();
+					Axis2 = FVector::UnitY();
+				}
+				Color1 = AxisColors[ETransformAxis::LocalX];
+				Color2 = AxisColors[ETransformAxis::LocalY];
+				break;
+			default:
+				return;
+			}
+
+			// draw lines
+			Axis1 *= 100000.0;
+			Axis2 *= 100000.0;
+			LineBatcher->DrawLine(
+				DragInitialActorPosition - Axis1,
+				DragInitialActorPosition + Axis1,
+				Color1,
+				SDPG_Foreground, 2.0f, 0.0f, TRANSFORM_BATCH_ID);
+			LineBatcher->DrawLine(
+				DragInitialActorPosition - Axis2,
+				DragInitialActorPosition + Axis2,
+				Color2,
+				SDPG_Foreground, 2.0f, 0.0f, TRANSFORM_BATCH_ID);
+		}
 	}
 
 	// Invalidate the focused viewport to trigger redraw

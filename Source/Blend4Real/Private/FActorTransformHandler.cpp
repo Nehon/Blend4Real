@@ -25,9 +25,9 @@ FTransform FActorTransformHandler::GetFirstSelectedItemTransform() const
 		return FTransform::Identity;
 	}
 
-	if (AActor* Actor = GEditor->GetSelectedActors()->GetTop<AActor>())
+	if (const AActor* Actor = GEditor->GetSelectedActors()->GetTop<AActor>())
 	{
-		return Actor->GetActorTransform();
+		return InitialTransforms[Actor->GetUniqueID()];
 	}
 
 	return FTransform::Identity;

@@ -54,7 +54,7 @@ public:
 	void UpdateFromMouseMove(const FVector2D& MousePosition, bool bInvertSnap);
 
 	/** Reset transform of selected actors for the given mode */
-	void ResetTransform(ETransformMode Mode);
+	void ResetTransform(ETransformMode Mode) const;
 
 private:
 	/** Get axis direction vector for the given axis */
@@ -63,7 +63,6 @@ private:
 	/** Compute the transform plane based on current mode and axis */
 	FPlane ComputePlane(const FVector& InitialPos);
 
-	
 
 	/** Apply transform to all selected actors */
 	void TransformSelectedActors(const FVector& Direction, float Value, bool Snap, bool InvertSnap = false);
@@ -71,7 +70,7 @@ private:
 	/** Directly set transform components on selected actors */
 	void SetDirectTransformToSelectedActors(const FVector* Location = nullptr,
 	                                        const FRotator* Rotation = nullptr,
-	                                        const FVector* Scale = nullptr);
+	                                        const FVector* Scale = nullptr) const;
 
 	/** Apply the internal transform state to actors */
 	void ApplyTransform(const FVector& Direction, float Value, bool InvertSnapState = false);
