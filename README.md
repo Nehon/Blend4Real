@@ -1,4 +1,4 @@
-![Blend4Real](Resources/Blend4RealLogo.png)
+![Blend4Real](Resources/B4RSplash.png)
 
 # Blend4Real - Blender style controls in Unreal Editor 
 

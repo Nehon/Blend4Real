@@ -74,3 +74,6 @@ Plugins/*/Binaries/*
 
 # Cache files for the editor to use
 DerivedDataCache/*
+
+# Mac shitty metadata
+.DS_Store
