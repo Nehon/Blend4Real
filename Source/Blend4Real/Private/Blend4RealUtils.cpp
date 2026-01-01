@@ -1,12 +1,12 @@
 #include "Blend4RealUtils.h"
 #include "Editor.h"
 #include "EditorViewportClient.h"
-#include "LevelEditor.h"
-#include "SLevelViewport.h"
+#include "PlatformInputsUtils.h"
 #include "Engine/Selection.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Slate/SceneViewport.h"
 #include "Widgets/SViewport.h"
+
 
 namespace Blend4RealUtils
 {
@@ -185,56 +185,58 @@ namespace Blend4RealUtils
 		return false;
 	}
 
+
 	bool IsNumericKey(const FKeyEvent& KeyEvent, FString& OutDigit)
 	{
 		const FKey Key = KeyEvent.GetKey();
+		const TCHAR Character = PlatformInputs::TranslateKeyWithModifiers(KeyEvent);
 
-		if (Key == EKeys::Zero || Key == EKeys::NumPadZero)
+		if (Key == EKeys::Zero || Key == EKeys::NumPadZero || Character == '0')
 		{
 			OutDigit = TEXT("0");
 			return true;
 		}
-		if (Key == EKeys::One || Key == EKeys::NumPadOne)
+		if (Key == EKeys::One || Key == EKeys::NumPadOne || Character == '1')
 		{
 			OutDigit = TEXT("1");
 			return true;
 		}
-		if (Key == EKeys::Two || Key == EKeys::NumPadTwo)
+		if (Key == EKeys::Two || Key == EKeys::NumPadTwo || Character == '2')
 		{
 			OutDigit = TEXT("2");
 			return true;
 		}
-		if (Key == EKeys::Three || Key == EKeys::NumPadThree)
+		if (Key == EKeys::Three || Key == EKeys::NumPadThree || Character == '3')
 		{
 			OutDigit = TEXT("3");
 			return true;
 		}
-		if (Key == EKeys::Four || Key == EKeys::NumPadFour)
+		if (Key == EKeys::Four || Key == EKeys::NumPadFour || Character == '4')
 		{
 			OutDigit = TEXT("4");
 			return true;
 		}
-		if (Key == EKeys::Five || Key == EKeys::NumPadFive)
+		if (Key == EKeys::Five || Key == EKeys::NumPadFive || Character == '5')
 		{
 			OutDigit = TEXT("5");
 			return true;
 		}
-		if (Key == EKeys::Six || Key == EKeys::NumPadSix)
+		if (Key == EKeys::Six || Key == EKeys::NumPadSix || Character == '6')
 		{
 			OutDigit = TEXT("6");
 			return true;
 		}
-		if (Key == EKeys::Seven || Key == EKeys::NumPadSeven)
+		if (Key == EKeys::Seven || Key == EKeys::NumPadSeven || Character == '7')
 		{
 			OutDigit = TEXT("7");
 			return true;
 		}
-		if (Key == EKeys::Eight || Key == EKeys::NumPadEight)
+		if (Key == EKeys::Eight || Key == EKeys::NumPadEight || Character == '8')
 		{
 			OutDigit = TEXT("8");
 			return true;
 		}
-		if (Key == EKeys::Nine || Key == EKeys::NumPadNine)
+		if (Key == EKeys::Nine || Key == EKeys::NumPadNine || Character == '9')
 		{
 			OutDigit = TEXT("9");
 			return true;

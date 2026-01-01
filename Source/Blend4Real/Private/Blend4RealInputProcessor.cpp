@@ -8,6 +8,7 @@
 #include "Editor.h"
 #include "EditorModeManager.h"
 #include "LevelEditor.h"
+#include "PlatformInputsUtils.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/CoreDelegates.h"
 
@@ -38,6 +39,7 @@ void FBlend4RealInputProcessor::RegisterInputProcessor()
 {
 	if (bIsEnabled && FSlateApplication::IsInitialized())
 	{
+		PlatformInputs::InitializeKeyboardLayoutCache();
 		FSlateApplication::Get().RegisterInputPreProcessor(SharedThis(this));
 	}
 }
@@ -61,6 +63,7 @@ void FBlend4RealInputProcessor::UnregisterInputProcessor()
 {
 	if (FSlateApplication::IsInitialized())
 	{
+		PlatformInputs::ShutdownKeyboardLayoutCache();
 		FSlateApplication::Get().UnregisterInputPreProcessor(SharedThis(this));
 	}
 }
@@ -133,7 +136,7 @@ bool FBlend4RealInputProcessor::HandleKeyDownEvent(FSlateApplication& SlateApp, 
 
 		// Numeric input
 		FString Digit;
-		if (Blend4RealUtils::IsNumericKey(InKeyEvent, Digit) && ModMask == 0)
+		if (Blend4RealUtils::IsNumericKey(InKeyEvent, Digit) && (ModMask == 0 || ModMask == EModifierKey::Shift))
 		{
 			TransformController->HandleNumericInput(Digit);
 			return true;

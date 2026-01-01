@@ -26,6 +26,7 @@ public class Blend4Real : ModuleRules
 				"Core", "LevelEditor"
 			}
 		);
+		if (Target.Platform == UnrealTargetPlatform.Mac) PublicFrameworks.Add("Carbon");
 
 		PrivateDependencyModuleNames.AddRange(
 			new[]
