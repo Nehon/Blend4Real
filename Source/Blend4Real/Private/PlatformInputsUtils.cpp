@@ -2,6 +2,10 @@
 #if PLATFORM_MAC
 #include <Carbon/Carbon.h>  // For UCKeyTranslate, TIS functions
 #include "Mac/CocoaThread.h" // For run in main thread
+#elif PLATFORM_WINDOWS
+#include "Windows/AllowWindowsPlatformTypes.h"
+#include <Windows.h>
+#include "Windows/HideWindowsPlatformTypes.h"
 #endif
 
 // this utils file allows to detect numeric input on non QWERTY keyboards that don't have numpads.
