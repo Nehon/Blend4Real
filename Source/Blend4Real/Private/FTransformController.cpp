@@ -286,7 +286,7 @@ void FTransformController::UpdateFromMouseMove(const FVector2D& MousePosition, b
 				}
 				else if (AlignToNormal)
 				{
-					const FRotator SurfaceRotation = Result.Normal.Rotation();
+					const FRotator SurfaceRotation = FRotationMatrix::MakeFromZ(Result.Normal).Rotator();
 					SetDirectTransformToSelectedActors(&Location, &SurfaceRotation);
 				}
 				else
