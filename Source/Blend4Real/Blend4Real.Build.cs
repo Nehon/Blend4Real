@@ -45,7 +45,8 @@ public class Blend4Real : ModuleRules
 				"DeveloperSettings",
 				"Kismet",
 				"SubobjectEditor",
-				"SubobjectDataInterface"
+				"SubobjectDataInterface",
+				"ComponentVisualizers"
 			}
 		);
 

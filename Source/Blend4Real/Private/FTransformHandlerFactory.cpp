@@ -3,15 +3,44 @@
 #include "FActorTransformHandler.h"
 #include "FComponentTransformHandler.h"
 #include "FSCSTransformHandler.h"
+#include "FSplinePointTransformHandler.h"
 #include "Blend4RealUtils.h"
 #include "Editor.h"
 #include "Engine/Selection.h"
 #include "Framework/Application/SlateApplication.h"
 #include "BlueprintEditorModule.h"
 #include "BlueprintEditor.h"
+#include "Features/IModularFeatures.h"
+#include "SplineDetailsProvider.h"
+#include "Components/SplineComponent.h"
 
 namespace
 {
+	/**
+	 * Try to create a spline point transform handler if spline control points are selected.
+	 * Returns nullptr if no spline points are selected.
+	 */
+	TSharedPtr<IBlend4RealTransformHandler> TryCreateSplinePointHandler()
+	{
+		// Get all spline details providers (visualizers that can provide selection state)
+		TArray<ISplineDetailsProvider*> Providers = IModularFeatures::Get()
+			.GetModularFeatureImplementations<ISplineDetailsProvider>(ISplineDetailsProvider::GetModularFeatureName());
+
+		for (ISplineDetailsProvider* Provider : Providers)
+		{
+			if (Provider && Provider->GetSelectedKeys().Num() > 0)
+			{
+				USplineComponent* SplineComp = Provider->GetEditedSplineComponent();
+				if (SplineComp)
+				{
+					return MakeShared<FSplinePointTransformHandler>(SplineComp, Provider->GetSelectedKeys());
+				}
+			}
+		}
+
+		return nullptr;
+	}
+
 	/**
 	 * Find the Blueprint editor that owns the SSCSEditorViewport at the given mouse position.
 	 * Returns nullptr if no matching editor is found.
@@ -59,6 +88,12 @@ TSharedPtr<IBlend4RealTransformHandler> FTransformHandlerFactory::CreateHandler(
 	// Level Editor: Check selection state to determine handler type
 	if (Blend4RealUtils::IsMouseOverViewport(MousePosition, FName("SLevelViewport")))
 	{
+		// Priority 0: Spline control points (most specific selection)
+		if (TSharedPtr<IBlend4RealTransformHandler> SplineHandler = TryCreateSplinePointHandler())
+		{
+			return SplineHandler;
+		}
+
 		// Priority 1: Components (more specific selection)
 		USelection* SelectedComponents = GEditor->GetSelectedComponents();
 		if (SelectedComponents && SelectedComponents->Num() > 0)
