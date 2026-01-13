@@ -61,8 +61,21 @@ namespace Blend4RealUtils
 	/** Get the active scene view for raycasting */
 	FSceneView* GetActiveSceneView(FEditorViewportClient* EClient = nullptr);
 
-	/** Compute the center pivot point of all selected actors or components*/
+	/** Compute the center pivot point of all selected actors or components.
+	 *  If a custom pivot override is set, returns that instead. */
 	FTransform ComputeSelectionPivot();
+
+	/** Set a custom pivot override location. Transforms will use this instead of computing from selection. */
+	void SetCustomPivot(const FVector& Location);
+
+	/** Clear the custom pivot override. Pivot will be computed from selection again. */
+	void ClearCustomPivot();
+
+	/** Check if a custom pivot override is currently set */
+	bool HasCustomPivot();
+
+	/** Get the custom pivot location (only valid if HasCustomPivot() returns true) */
+	FVector GetCustomPivot();
 
 	/**
 	 * Perform a scene pick (raycast) at the given mouse position

@@ -10,6 +10,10 @@
 
 namespace Blend4RealUtils
 {
+	// Custom pivot override state
+	static bool bHasCustomPivot = false;
+	static FVector CustomPivotLocation = FVector::ZeroVector;
+
 	// Forward declaration
 	FEditorViewportClient* GetViewportClientAtPosition(const FVector2D& ScreenPosition,
 	                                                   const FName& ViewportTypeFilter = NAME_None);
@@ -58,8 +62,38 @@ namespace Blend4RealUtils
 		return EClient->CalcSceneView(&ViewFamily);
 	}
 
+	void SetCustomPivot(const FVector& Location)
+	{
+		bHasCustomPivot = true;
+		CustomPivotLocation = Location;
+	}
+
+	void ClearCustomPivot()
+	{
+		bHasCustomPivot = false;
+		CustomPivotLocation = FVector::ZeroVector;
+	}
+
+	bool HasCustomPivot()
+	{
+		return bHasCustomPivot;
+	}
+
+	FVector GetCustomPivot()
+	{
+		return CustomPivotLocation;
+	}
+
 	FTransform ComputeSelectionPivot()
 	{
+		// If custom pivot is set, use it directly
+		if (bHasCustomPivot)
+		{
+			FTransform Transform;
+			Transform.SetLocation(CustomPivotLocation);
+			return Transform;
+		}
+
 		if (!GEditor)
 		{
 			return FTransform();

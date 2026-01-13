@@ -83,6 +83,11 @@ public:
 		meta = (DisplayName = "Focus on Hit"))
 	FInputChord FocusOnHitKey = FInputChord(EModifierKey::Alt, EKeys::MiddleMouseButton);
 
+	// ===== Keybindings: Pivot =====
+	UPROPERTY(Config, EditAnywhere, Category = "Keybindings|Pivot",
+		meta = (DisplayName = "Relocate Pivot", ToolTip = "Click to raycast and set the selection pivot at the hit location"))
+	FInputChord RelocatePivotKey = FInputChord(EModifierKey::Shift, EKeys::RightMouseButton);
+
 	// ===== Keybindings: Transform Confirmation =====
 	UPROPERTY(Config, EditAnywhere, Category = "Keybindings|Confirmation",
 		meta = (DisplayName = "Apply Transform"))

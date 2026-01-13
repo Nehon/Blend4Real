@@ -9,6 +9,7 @@
 #include "Widgets/SCanvas.h"
 #include "Widgets/Images/SImage.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
+#include "Framework/Application/SlateApplication.h"
 
 // Pivot marker visual settings - smaller size for cleaner look
 static constexpr float PIVOT_MARKER_SIZE = 8.0f;  // Diameter in pixels
@@ -108,6 +109,8 @@ void FPivotVisualizationController::RefreshVisualization()
 
 void FPivotVisualizationController::OnSelectionChanged(UObject* NewSelection)
 {
+	// Clear custom pivot when selection changes - the pivot should be computed from the new selection
+	Blend4RealUtils::ClearCustomPivot();
 	RefreshVisualization();
 }
 
@@ -208,8 +211,24 @@ void FPivotVisualizationController::UpdatePivotPosition()
 		}
 	}
 
-	// Get the focused viewport client
-	FEditorViewportClient* ViewportClient = Blend4RealUtils::GetFocusedViewportClient();
+	// Only update pivot when mouse is over a level viewport
+	// This prevents crashes when other viewports (texture editor, etc.) are focused
+	if (!FSlateApplication::IsInitialized())
+	{
+		HidePivotMarker();
+		return;
+	}
+	const FVector2D CursorPos = FSlateApplication::Get().GetCursorPos();
+	if (!Blend4RealUtils::IsMouseOverViewport(CursorPos, FName("SLevelViewport")))
+	{
+		HidePivotMarker();
+		return;
+	}
+
+	// Get the level viewport client
+	FVector2D ViewportScreenOrigin;
+	FEditorViewportClient* ViewportClient = Blend4RealUtils::GetViewportClientAndScreenOrigin(
+		CursorPos, ViewportScreenOrigin, FName("SLevelViewport"));
 	if (!ViewportClient)
 	{
 		HidePivotMarker();
@@ -259,10 +278,17 @@ bool FPivotVisualizationController::ProjectWorldToViewport(const FVector& WorldP
 		return false;
 	}
 
-	// Create scene view
+	// GetScene() can return nullptr for non-level viewports (e.g., texture editor)
+	FSceneInterface* Scene = ViewportClient->GetScene();
+	if (!Scene)
+	{
+		return false;
+	}
+
+	// Create scene viewI still have acrash when opening a 
 	FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(
 		ViewportClient->Viewport,
-		ViewportClient->GetScene(),
+		Scene,
 		ViewportClient->EngineShowFlags
 	));
 

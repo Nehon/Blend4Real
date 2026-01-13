@@ -325,6 +325,21 @@ bool FBlend4RealInputProcessor::HandleMouseButtonDownEvent(FSlateApplication& Sl
 			NavigationController->BeginOrbit(FVector2D(MouseEvent.GetScreenSpacePosition()));
 			return true;
 		}
+		// Pivot relocation (Shift+RMB raycast)
+		if (UBlend4RealSettings::MatchesChord(Settings->RelocatePivotKey, MouseEvent))
+		{
+			FVector RayOrigin, RayDirection;
+			FHitResult HitResult = Blend4RealUtils::ScenePickAtPosition(MousePosition, RayOrigin, RayDirection);
+			if (HitResult.bBlockingHit)
+			{
+				Blend4RealUtils::SetCustomPivot(HitResult.ImpactPoint);
+				if (PivotVisualizationController.IsValid())
+				{
+					PivotVisualizationController->RefreshVisualization();
+				}
+			}
+			return true;
+		}
 	}
 
 	// Transform confirmation
