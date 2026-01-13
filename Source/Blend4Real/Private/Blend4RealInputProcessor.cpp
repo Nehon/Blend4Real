@@ -4,6 +4,7 @@
 #include "FNavigationController.h"
 #include "FTransformController.h"
 #include "FSelectionActionsController.h"
+#include "FPivotVisualizationController.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Editor.h"
 #include "EditorModeManager.h"
@@ -21,6 +22,7 @@ FBlend4RealInputProcessor::FBlend4RealInputProcessor()
 	TransformController = MakeShareable(new FTransformController());
 	NavigationController = MakeShareable(new FNavigationController());
 	SelectionActionsController = MakeShareable(new FSelectionActionsController(TransformController));
+	PivotVisualizationController = MakeShareable(new FPivotVisualizationController());
 
 	// Note: We can't call SharedThis() or GLevelEditorModeTools() during construction.
 	// - SharedThis() requires the object to be owned by a shared pointer first
@@ -85,11 +87,13 @@ void FBlend4RealInputProcessor::ToggleEnabled(const bool bInvalidateRender)
 	if (bIsEnabled)
 	{
 		RegisterInputProcessor();
+		PivotVisualizationController->Enable();
 		UE_LOG(LogTemp, Display, TEXT("Blender Controls: Enabled"));
 	}
 	else
 	{
 		UnregisterInputProcessor();
+		PivotVisualizationController->Disable();
 		UE_LOG(LogTemp, Display, TEXT("Blender Controls: Disabled"));
 	}
 }
@@ -97,7 +101,11 @@ void FBlend4RealInputProcessor::ToggleEnabled(const bool bInvalidateRender)
 
 void FBlend4RealInputProcessor::Tick(const float DeltaTime, FSlateApplication& SlateApp, TSharedRef<ICursor> Cursor)
 {
-	// Nothing to do - visualization is updated when transform state changes
+	// Update pivot visualization position on every tick to handle camera changes (zoom, etc.)
+	if (bIsEnabled && PivotVisualizationController.IsValid())
+	{
+		PivotVisualizationController->RefreshVisualization();
+	}
 }
 
 bool FBlend4RealInputProcessor::HandleKeyDownEvent(FSlateApplication& SlateApp, const FKeyEvent& InKeyEvent)

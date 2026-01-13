@@ -7,6 +7,7 @@
 class FNavigationController;
 class FTransformController;
 class FSelectionActionsController;
+class FPivotVisualizationController;
 class UBlenderOrbitInteraction;
 class UViewportOrbitInteraction;
 
@@ -45,4 +46,5 @@ private:
 	TSharedPtr<FNavigationController> NavigationController;
 	TSharedPtr<FTransformController> TransformController;
 	TSharedPtr<FSelectionActionsController> SelectionActionsController;
+	TSharedPtr<FPivotVisualizationController> PivotVisualizationController;
 };

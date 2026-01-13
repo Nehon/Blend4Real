@@ -76,7 +76,15 @@ namespace Blend4RealUtils
 			{
 				if (const AActor* Actor = Cast<AActor>(*It))
 				{
-					Center += Actor->GetActorLocation();
+					// Get the actor's world transform
+					const FTransform ActorTransform = Actor->GetActorTransform();
+
+					// Get the pivot offset (local space) and transform to world space
+					// This matches how Unreal's editor gizmo computes the pivot point
+					const FVector PivotOffset = Actor->GetPivotOffset();
+					const FVector PivotWorldPosition = ActorTransform.TransformPosition(PivotOffset);
+
+					Center += PivotWorldPosition;
 					Count++;
 				}
 			}
@@ -84,6 +92,7 @@ namespace Blend4RealUtils
 		else
 		{
 			// No selected actors, we try to find selected components
+			// Components don't have pivot offsets, so just use their location
 			USelection* SelectedComponents = GEditor->GetSelectedComponents();
 			for (FSelectionIterator It(*SelectedComponents); It; ++It)
 			{
