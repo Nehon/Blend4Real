@@ -1,5 +1,6 @@
 #include "Blend4RealUtils.h"
 #include "Editor.h"
+#include "EditorModeManager.h"
 #include "EditorViewportClient.h"
 #include "PlatformInputsUtils.h"
 #include "Engine/Selection.h"
@@ -66,6 +67,10 @@ namespace Blend4RealUtils
 	{
 		bHasCustomPivot = true;
 		CustomPivotLocation = Location;
+
+		// Sync with Unreal's gizmo pivot location so that
+		// "Pivot > Set as Pivot Offset" context menu works
+		GLevelEditorModeTools().SetPivotLocation(Location, false);
 	}
 
 	void ClearCustomPivot()
