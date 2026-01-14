@@ -76,6 +76,8 @@ void FComponentTransformHandler::RestoreInitialState()
 			if (const FTransform* Original = InitialTransforms.Find(Component->GetUniqueID()))
 			{
 				Component->SetWorldTransform(*Original);
+				// Notify component that movement is complete (restored to original position)
+				Component->PostEditComponentMove(true);
 			}
 		}
 	}
@@ -131,6 +133,8 @@ void FComponentTransformHandler::ApplyTransformAroundPivot(const FTransform& Ini
 			if (NewTransform.IsValid())
 			{
 				Component->SetWorldTransform(NewTransform);
+				// Notify component of movement (bFinished=false indicates movement is still in progress)
+				Component->PostEditComponentMove(false);
 			}
 		}
 	}
@@ -165,6 +169,8 @@ void FComponentTransformHandler::SetDirectTransform(const FVector* Location, con
 			}
 
 			Component->SetWorldTransform(CurrentTransform);
+				// Notify component of movement (bFinished=false indicates movement is still in progress)
+				Component->PostEditComponentMove(false);
 		}
 	}
 }
@@ -198,6 +204,19 @@ void FComponentTransformHandler::EndTransaction()
 {
 	if (GEditor)
 	{
+		// Notify all selected components that movement has finished
+		USelection* Selection = GetSelectedComponents();
+		if (Selection)
+		{
+			for (FSelectionIterator It(*Selection); It; ++It)
+			{
+				if (USceneComponent* Component = Cast<USceneComponent>(*It))
+				{
+					Component->PostEditComponentMove(true);
+				}
+			}
+		}
+
 		GEditor->EndTransaction();
 	}
 }

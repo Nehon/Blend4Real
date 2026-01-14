@@ -67,6 +67,8 @@ void FActorTransformHandler::RestoreInitialState()
 			if (const FTransform* Original = InitialTransforms.Find(Actor->GetUniqueID()))
 			{
 				Actor->SetActorTransform(*Original, false, nullptr, ETeleportType::None);
+				// Notify actor that movement is complete (restored to original position)
+				Actor->PostEditMove(true);
 			}
 		}
 	}
@@ -100,6 +102,8 @@ void FActorTransformHandler::ApplyTransformAroundPivot(const FTransform& Initial
 			if (!ActorTransform.ContainsNaN())
 			{
 				Actor->SetActorTransform(ActorTransform, false, nullptr, ETeleportType::None);
+				// Notify actor of movement (bFinished=false indicates movement is still in progress)
+				Actor->PostEditMove(false);
 			}
 		}
 	}
@@ -135,6 +139,8 @@ void FActorTransformHandler::SetDirectTransform(const FVector* Location, const F
 			if (!ActorTransform.ContainsNaN())
 			{
 				Actor->SetActorTransform(ActorTransform, false, nullptr, ETeleportType::None);
+				// Notify actor of movement (bFinished=false indicates movement is still in progress)
+				Actor->PostEditMove(false);
 			}
 		}
 	}
@@ -166,6 +172,17 @@ void FActorTransformHandler::EndTransaction()
 {
 	if (GEditor)
 	{
+		// Notify all selected actors that movement has finished
+		// This triggers construction script reruns, OnActorMoved broadcasts, etc.
+		USelection* SelectedActors = GEditor->GetSelectedActors();
+		for (FSelectionIterator It(*SelectedActors); It; ++It)
+		{
+			if (AActor* Actor = Cast<AActor>(*It))
+			{
+				Actor->PostEditMove(true);
+			}
+		}
+
 		GEditor->EndTransaction();
 	}
 }

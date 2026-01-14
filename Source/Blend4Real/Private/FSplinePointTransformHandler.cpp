@@ -107,6 +107,12 @@ void FSplinePointTransformHandler::RestoreInitialState()
 	}
 
 	SplineComponent->UpdateSpline();
+
+	// Notify owning actor that movement is complete (restored to original state)
+	if (AActor* Owner = SplineComponent->GetOwner())
+	{
+		Owner->PostEditMove(true);
+	}
 }
 
 void FSplinePointTransformHandler::ApplyTransformAroundPivot(const FTransform& InitialPivot, const FTransform& NewPivotTransform)
@@ -158,6 +164,12 @@ void FSplinePointTransformHandler::ApplyTransformAroundPivot(const FTransform& I
 
 	// Update spline once after all points are modified
 	SplineComponent->UpdateSpline();
+
+	// Notify owning actor of movement (for dependent systems like construction scripts)
+	if (AActor* Owner = SplineComponent->GetOwner())
+	{
+		Owner->PostEditMove(false);
+	}
 }
 
 void FSplinePointTransformHandler::SetDirectTransform(const FVector* Location, const FRotator* Rotation, const FVector* Scale)
@@ -184,6 +196,12 @@ void FSplinePointTransformHandler::SetDirectTransform(const FVector* Location, c
 	}
 
 	SplineComponent->UpdateSpline();
+
+	// Notify owning actor of movement (for dependent systems like construction scripts)
+	if (AActor* Owner = SplineComponent->GetOwner())
+	{
+		Owner->PostEditMove(false);
+	}
 }
 
 int32 FSplinePointTransformHandler::BeginTransaction(const FText& Description)
@@ -205,6 +223,15 @@ void FSplinePointTransformHandler::EndTransaction()
 {
 	if (GEditor)
 	{
+		// Notify owning actor that movement has finished
+		if (SplineComponent.IsValid())
+		{
+			if (AActor* Owner = SplineComponent->GetOwner())
+			{
+				Owner->PostEditMove(true);
+			}
+		}
+
 		GEditor->EndTransaction();
 	}
 }
