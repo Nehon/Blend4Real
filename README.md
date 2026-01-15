@@ -15,16 +15,17 @@ So if you want an extra feature, you'll have to implement it yourself, and optio
 ## Blender-Style Features
 
 ### Object Manipulation
-| Action                | Key                                     | Description                                                      |
-|-----------------------|-----------------------------------------|------------------------------------------------------------------|
-| **Grab (Translate)**  | `G`                                     | Begin moving selected objects                                    |
-| **Rotate**            | `R`                                     | Begin rotating selected objects                                  |
-| **Scale**             | `S`                                     | Begin scaling selected objects                                   |
-| **Axis Constraint**   | `X` / `Y` / `Z`                         | Constrain transform to world axis (press twice for local axis)   |
-| **Plane Constraint**  | `Shift + X` / `Shift + Y` / `Shift + Z` | Constrain transform to world plane (press twice for local plane) |
-| **Confirm Transform** | `Left Click` or `Enter`                 | Apply the transformation                                         |
-| **Cancel Transform**  | `Right Click` or `Escape`               | Cancel and revert to original transform                          |
-| **Numeric Input**     | `0-9`, `.`, `-`                         | Type exact values during transform                               |
+| Action                | Key                                     | Description                                                             |
+|-----------------------|-----------------------------------------|-------------------------------------------------------------------------|
+| **Grab (Translate)**  | `G`                                     | Begin moving selected objects                                           |
+| **Rotate**            | `R`                                     | Begin rotating selected objects                                         |
+| **Scale**             | `S`                                     | Begin scaling selected objects                                          |
+| **Axis Constraint**   | `X` / `Y` / `Z`                         | Constrain transform to world axis (press twice for local axis)          |
+| **Plane Constraint**  | `Shift + X` / `Shift + Y` / `Shift + Z` | Constrain transform to world plane (press twice for local plane)        |
+| **Confirm Transform** | `Left Click` or `Enter`                 | Apply the transformation                                                |
+| **Cancel Transform**  | `Right Click` or `Escape`               | Cancel and revert to original transform                                 |
+| **Numeric Input**     | `0-9`, `.`, `-`                         | Type exact values during transform                                      |
+| **Relocate Pivot**    | `Shift + Right Click`                   | Pick the scene to relocate the transform pivot (like blender 3D cursor) |
 
 ### Transform Reset
 | Action | Key | Description |
@@ -67,15 +68,22 @@ These features go beyond standard Blender controls:
 | **Focus on Hit** | `Alt + Middle Mouse Button`      | Focus camera on the point under cursor (Slightly different as it Zooms on the focal point instead of just looking at it like in blender) |
 | **Focus on Hit (Double Click)** | `Double Click Left Mouse Button` | Focus camera on the point under cursor (Sketchfab-style)                                                                                 |
 
+## Supported Unreal editors
+- Level Editor: Camera navigation + Edition of actors, scene components and spline points
+- Blueprint viewport: Camera Navigation + Edition of components
+- Static / Skeletal Mesh, Material, Animation, Niagara editors: Camera navigation only. 
+
+Unsupported yet: Bone edition in the Skeletal Mesh Editor or Animation editor
+
 ## Non Intrusive
-Can be toggled on/off anytime via a button in the viewport toolbar.
+Can be toggled on/off anytime via a button in the viewport toolbar. (if anything goes wrong you can easily revert back to unreal's controls in one click)
 
 ## Configurable Keybindings
 You might be used to blender, but maybe you are using specific bindigns in blender itself.\
 If That's the case you can configure them the same in the plugin settings\
 All keybindings can be customized in **Edit > Editor Preferences > Plugins > Blend4Real** under the Keybindings categories:
 - **Transform**: Begin Translation, Rotation, Scale
-- **Transform Reset**: Reset Translation, Rotation, Scale
+- **Transform Reset**: Reset Translation, Rotation, Scale, Relocated Pivot
 - **Objects**: Duplicate, Delete
 - **Camera**: Orbit, Pan, Focus on Hit
 - **Confirmation**: Apply Transform, Cancel Transform
@@ -86,7 +94,6 @@ The plugin will warn you if you assign conflicting keybindings.
 This plugin compiles against Unreal Engine 5.7.1, but it should be possible to retro compile it to 5.6 if you import it in your project's Plugin folder.
 
 ## Feature I'm contemplating implementing, or not.
-- **Change pivot point for transform**: Having a 3D cursor and being allowed to use median/individual origins or cursor as the center of the transformation. It's useful mostly in mesh eit mode to me, so I'm not sure it would be useful in Unreal.
 - **Status bar at the bottom displaying contextual shortcuts**: It's something quite useful in Blender, but mostly if you're not used to it. if you're there I guess you already know the shortcuts.
 - ~~box selection with LMB+drag~~ :  I decided to not do this one. In unreal it's hardcoded to LMB+Ctrl+Shift+Alt, unfortunately, just remapping it in not possible.\
   To have this it basicallt needs to be redone from scartch. The change is quite involved and would add a big amount of code for what would just be a key rebind. I figured it was not worth it.\
