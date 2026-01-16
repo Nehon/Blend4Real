@@ -48,6 +48,9 @@ public:
 	/** Set the last mouse position (called by input processor on mouse move) */
 	void SetLastMousePosition(const FVector2D& Position) { LastMousePosition = Position; }
 
+	/** Reinitialize pan state after cursor wrap (prevents jump in pan calculation) */
+	void ReinitializePanAfterWrap(const FVector2D& NewMousePosition);
+
 private:
 	/** Get the viewport client - returns captured viewport during navigation, otherwise focused viewport */
 	FEditorViewportClient* GetViewportClient() const;
@@ -61,8 +64,15 @@ private:
 	/** Update pan for viewports in orbit camera mode */
 	void UpdatePanOrbitCameraMode(FEditorViewportClient* ViewportClient, const FVector2D& MousePosition);
 
+	/** Enable high-precision mouse mode for infinite cursor movement */
+	void EnableHighPrecisionMouseMode();
+
+	/** Disable high-precision mouse mode and restore cursor position */
+	void DisableHighPrecisionMouseMode();
+
 	bool bIsOrbiting = false;
 	bool bIsPanning = false;
+	bool bHighPrecisionMouseEnabled = false;
 	bool bPlaneLessPan = false;
 	bool bIsOrbitCameraMode = false;  // True if viewport uses orbit camera (Material Editor, Niagara, etc.)
 	FEditorViewportClient* CapturedViewportClient = nullptr;  // Viewport captured at navigation start
@@ -72,6 +82,7 @@ private:
 	FVector StartPanCameraLocation = FVector::ZeroVector;
 	FVector StartPanLookAtLocation = FVector::ZeroVector;  // For orbit camera mode pan
 	FVector2D LastMousePosition = FVector2D::ZeroVector;
+	FIntPoint PreCaptureMousePos = FIntPoint::ZeroValue;  // Cursor position before high-precision mode
 	FPlane PanPlane;
 
 	FIntRect PanUnscaledViewRect;

@@ -106,6 +106,86 @@ void FBlend4RealInputProcessor::Tick(const float DeltaTime, FSlateApplication& S
 	{
 		PivotVisualizationController->RefreshVisualization();
 	}
+
+	// Manage cursor visibility and wrapping during navigation
+	if (bIsEnabled && NavigationController.IsValid())
+	{
+		const bool bIsNavigating = NavigationController->IsNavigating();
+
+		if (bIsNavigating && !bCursorHidden)
+		{
+			// Save cursor position before hiding
+			PreNavigationCursorPos = Cursor->GetPosition().IntPoint();
+			// Hide the cursor
+			Cursor->Show(false);
+			bCursorHidden = true;
+		}
+		else if (!bIsNavigating && bCursorHidden)
+		{
+			// Show the cursor
+			Cursor->Show(true);
+			// Restore cursor position to where navigation started
+			Cursor->SetPosition(PreNavigationCursorPos.X, PreNavigationCursorPos.Y);
+			bCursorHidden = false;
+		}
+
+		// Cursor wrapping for infinite mouse movement during navigation
+		if (bIsNavigating)
+		{
+			FVector2D CursorPos = Cursor->GetPosition();
+			FDisplayMetrics DisplayMetrics;
+			FSlateApplication::Get().GetDisplayMetrics(DisplayMetrics);
+
+			// Get virtual screen bounds (handles multi-monitor setups)
+			const float MinX = static_cast<float>(DisplayMetrics.VirtualDisplayRect.Left);
+			const float MaxX = static_cast<float>(DisplayMetrics.VirtualDisplayRect.Right);
+			const float MinY = static_cast<float>(DisplayMetrics.VirtualDisplayRect.Top);
+			const float MaxY = static_cast<float>(DisplayMetrics.VirtualDisplayRect.Bottom);
+
+			constexpr float WrapMargin = 2.0f;
+			constexpr float WrapOffset = 20.0f; // How far from edge to place cursor after wrap
+			bool bNeedsWrap = false;
+			FVector2D NewPos = CursorPos;
+
+			// Check horizontal bounds
+			if (CursorPos.X <= MinX + WrapMargin)
+			{
+				NewPos.X = MaxX - WrapOffset;
+				bNeedsWrap = true;
+			}
+			else if (CursorPos.X >= MaxX - WrapMargin)
+			{
+				NewPos.X = MinX + WrapOffset;
+				bNeedsWrap = true;
+			}
+
+			// Check vertical bounds
+			if (CursorPos.Y <= MinY + WrapMargin)
+			{
+				NewPos.Y = MaxY - WrapOffset;
+				bNeedsWrap = true;
+			}
+			else if (CursorPos.Y >= MaxY - WrapMargin)
+			{
+				NewPos.Y = MinY + WrapOffset;
+				bNeedsWrap = true;
+			}
+
+			if (bNeedsWrap)
+			{
+				Cursor->SetPosition(static_cast<int32>(NewPos.X), static_cast<int32>(NewPos.Y));
+				// Update last mouse position to prevent jump in delta calculation
+				NavigationController->SetLastMousePosition(NewPos);
+				LastMousePosition = NewPos;
+
+				// For panning, reinitialize the pan state to prevent jumps
+				if (NavigationController->IsPanning())
+				{
+					NavigationController->ReinitializePanAfterWrap(NewPos);
+				}
+			}
+		}
+	}
 }
 
 bool FBlend4RealInputProcessor::HandleKeyDownEvent(FSlateApplication& SlateApp, const FKeyEvent& InKeyEvent)
@@ -314,7 +394,8 @@ bool FBlend4RealInputProcessor::HandleMouseButtonDownEvent(FSlateApplication& Sl
 		if (UBlend4RealSettings::MatchesChord(Settings->PanCameraKey, MouseEvent))
 		{
 			NavigationController->BeginPan(FVector2D(MouseEvent.GetScreenSpacePosition()));
-			return true;
+			// Return false to let Slate process mouse down normally (sets up capture state)
+			return false;
 		}
 		if (UBlend4RealSettings::MatchesChord(Settings->FocusOnHitKey, MouseEvent))
 		{
@@ -323,7 +404,8 @@ bool FBlend4RealInputProcessor::HandleMouseButtonDownEvent(FSlateApplication& Sl
 		if (UBlend4RealSettings::MatchesChord(Settings->OrbitCameraKey, MouseEvent))
 		{
 			NavigationController->BeginOrbit(FVector2D(MouseEvent.GetScreenSpacePosition()));
-			return true;
+			// Return false to let Slate process mouse down normally (sets up capture state)
+			return false;
 		}
 		// Pivot relocation (Shift+RMB raycast)
 		if (UBlend4RealSettings::MatchesChord(Settings->RelocatePivotKey, MouseEvent))
@@ -393,12 +475,15 @@ bool FBlend4RealInputProcessor::HandleMouseButtonUpEvent(FSlateApplication& Slat
 		if (NavigationController->IsOrbiting())
 		{
 			NavigationController->EndOrbit();
-			return true;
+			// Return false to let Slate process the mouse up normally
+			// This allows proper cleanup of focus/capture state
+			return false;
 		}
 		if (NavigationController->IsPanning())
 		{
 			NavigationController->EndPan();
-			return true;
+			// Return false to let Slate process the mouse up normally
+			return false;
 		}
 	}
 

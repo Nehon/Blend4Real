@@ -40,7 +40,9 @@ private:
 	void Init(TSharedPtr<ILevelEditor> InLevelEditor);
 
 	bool bIsEnabled = false;
+	bool bCursorHidden = false;
 	FVector2D LastMousePosition = FVector2D::ZeroVector;
+	FIntPoint PreNavigationCursorPos = FIntPoint::ZeroValue;
 
 	// Controllers
 	TSharedPtr<FNavigationController> NavigationController;

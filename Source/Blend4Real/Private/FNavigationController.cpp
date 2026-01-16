@@ -3,6 +3,7 @@
 #include "Blend4RealSettings.h"
 #include "Editor.h"
 #include "EditorViewportClient.h"
+#include "UnrealClient.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Engine/Selection.h"
 
@@ -32,6 +33,9 @@ void FNavigationController::BeginOrbit(const FVector2D& MousePosition)
 	CapturedViewportClient = ViewportClient;
 	bIsOrbiting = true;
 	LastMousePosition = FSlateApplication::Get().GetCursorPos();
+
+	// Enable high-precision mouse mode for infinite cursor movement
+	EnableHighPrecisionMouseMode();
 
 	// Detect if viewport is in orbit camera mode (Material Editor, Niagara, etc.)
 	bIsOrbitCameraMode = ViewportClient->bUsingOrbitCamera;
@@ -64,6 +68,9 @@ void FNavigationController::BeginOrbit(const FVector2D& MousePosition)
 
 void FNavigationController::EndOrbit()
 {
+	// Disable high-precision mouse mode and restore cursor
+	DisableHighPrecisionMouseMode();
+
 	bIsOrbiting = false;
 	CapturedViewportClient = nullptr;
 }
@@ -94,6 +101,9 @@ void FNavigationController::BeginPan(const FVector2D& MousePosition)
 	CapturedViewportClient = ViewportClient;
 	bIsPanning = true;
 	LastMousePosition = FSlateApplication::Get().GetCursorPos();
+
+	// Enable high-precision mouse mode for infinite cursor movement
+	EnableHighPrecisionMouseMode();
 
 	// Detect if viewport is in orbit camera mode
 	bIsOrbitCameraMode = ViewportClient->bUsingOrbitCamera;
@@ -149,8 +159,53 @@ void FNavigationController::BeginPan(const FVector2D& MousePosition)
 
 void FNavigationController::EndPan()
 {
+	// Disable high-precision mouse mode and restore cursor
+	DisableHighPrecisionMouseMode();
+
 	bIsPanning = false;
 	CapturedViewportClient = nullptr;
+}
+
+void FNavigationController::ReinitializePanAfterWrap(const FVector2D& NewMousePosition)
+{
+	if (!bIsPanning || bPlaneLessPan)
+	{
+		return;
+	}
+
+	FEditorViewportClient* ViewportClient = GetViewportClient();
+	if (!ViewportClient)
+	{
+		return;
+	}
+
+	const FSceneView* Scene = Blend4RealUtils::GetActiveSceneView(ViewportClient);
+	if (!Scene)
+	{
+		return;
+	}
+
+	// Update start camera location to current position
+	if (bIsOrbitCameraMode)
+	{
+		FViewportCameraTransform& ViewTransform = ViewportClient->GetViewTransform();
+		StartPanCameraLocation = ViewTransform.ComputeOrbitMatrix().Inverse().GetOrigin();
+		StartPanLookAtLocation = ViewportClient->GetLookAtLocation();
+	}
+	else
+	{
+		StartPanCameraLocation = ViewportClient->GetViewLocation();
+	}
+
+	// Update projection matrix to current
+	PanInvViewProjectionMatrix = Scene->ViewMatrices.GetInvViewProjectionMatrix();
+	PanUnscaledViewRect = Scene->UnscaledViewRect;
+
+	// Recalculate pan pivot based on new mouse position
+	Scene->DeprojectScreenToWorld(NewMousePosition, PanUnscaledViewRect, PanInvViewProjectionMatrix, RayOrigin, RayDirection);
+	PanPivot = FMath::RayPlaneIntersection(RayOrigin, RayDirection, PanPlane);
+
+	LastMousePosition = NewMousePosition;
 }
 
 void FNavigationController::UpdateOrbit(const FVector2D& Delta) const
@@ -178,7 +233,7 @@ void FNavigationController::UpdateOrbitCameraMode(FEditorViewportClient* Viewpor
 	// This matches how UE handles orbit camera input in EditorViewportClient.cpp:2928-2936
 
 	constexpr float RotationSpeed = 0.25f;
-	const float DeltaYaw = -Delta.X * RotationSpeed;  // Inverted to match UE's orbit behavior
+	const float DeltaYaw = -Delta.X * RotationSpeed; // Inverted to match UE's orbit behavior
 	const float DeltaPitch = -Delta.Y * RotationSpeed;
 
 	FRotator CurrentRotation = ViewportClient->GetViewRotation();
@@ -289,7 +344,8 @@ void FNavigationController::UpdatePan(const FVector2D& MousePosition)
 	ViewportClient->Invalidate();
 }
 
-void FNavigationController::UpdatePanOrbitCameraMode(FEditorViewportClient* ViewportClient, const FVector2D& MousePosition)
+void FNavigationController::UpdatePanOrbitCameraMode(FEditorViewportClient* ViewportClient,
+                                                     const FVector2D& MousePosition)
 {
 	// In orbit camera mode, panning moves both the LookAt point and the camera together,
 	// maintaining the orbit relationship. We use the same plane-based reprojection as regular mode
@@ -376,4 +432,24 @@ bool FNavigationController::FocusOnMouseHit(const FVector2D& MousePosition)
 	}
 
 	return false;
+}
+
+void FNavigationController::EnableHighPrecisionMouseMode()
+{
+	if (bHighPrecisionMouseEnabled)
+	{
+		return;
+	}
+
+	bHighPrecisionMouseEnabled = true;
+}
+
+void FNavigationController::DisableHighPrecisionMouseMode()
+{
+	if (!bHighPrecisionMouseEnabled)
+	{
+		return;
+	}
+
+	bHighPrecisionMouseEnabled = false;
 }
