@@ -20,6 +20,7 @@ public:
 	// Transform Data
 	virtual FTransform ComputeSelectionPivot() const override;
 	virtual FTransform GetFirstSelectedItemTransform() const override;
+	virtual FVector ComputeAverageLocalAxis(EAxis::Type Axis) const override;
 
 	// State Management
 	virtual void CaptureInitialState() override;

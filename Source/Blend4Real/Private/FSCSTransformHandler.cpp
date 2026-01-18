@@ -178,6 +178,60 @@ FTransform FSCSTransformHandler::GetFirstSelectedItemTransform() const
 	return FTransform::Identity;
 }
 
+FVector FSCSTransformHandler::ComputeAverageLocalAxis(EAxis::Type Axis) const
+{
+	TArray<TSharedPtr<FSubobjectEditorTreeNode>> Nodes = GetTransformableSelectedNodes();
+	if (Nodes.Num() == 0)
+	{
+		return FVector::ZeroVector;
+	}
+
+	// Accumulate axis vectors from each selected node
+	FVector AccumulatedAxis = FVector::ZeroVector;
+	int32 Count = 0;
+
+	for (const TSharedPtr<FSubobjectEditorTreeNode>& Node : Nodes)
+	{
+		const FSubobjectData* Data = Node->GetDataSource();
+		if (!Data)
+		{
+			continue;
+		}
+
+		if (const FTransform* Transform = InitialTransforms.Find(Data->GetHandle()))
+		{
+			const FQuat Rotation = Transform->GetRotation();
+			FVector AxisVector;
+
+			switch (Axis)
+			{
+			case EAxis::X:
+				AxisVector = Rotation.GetForwardVector();
+				break;
+			case EAxis::Y:
+				AxisVector = Rotation.GetRightVector();
+				break;
+			case EAxis::Z:
+				AxisVector = Rotation.GetUpVector();
+				break;
+			default:
+				AxisVector = FVector::ZeroVector;
+				break;
+			}
+
+			AccumulatedAxis += AxisVector;
+			Count++;
+		}
+	}
+
+	if (Count == 0)
+	{
+		return FVector::ZeroVector;
+	}
+
+	return (AccumulatedAxis / Count).GetSafeNormal();
+}
+
 void FSCSTransformHandler::CaptureInitialState()
 {
 	InitialTransforms.Empty();

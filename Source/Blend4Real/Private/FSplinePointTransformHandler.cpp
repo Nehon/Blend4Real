@@ -66,6 +66,53 @@ FTransform FSplinePointTransformHandler::GetFirstSelectedItemTransform() const
 	);
 }
 
+FVector FSplinePointTransformHandler::ComputeAverageLocalAxis(EAxis::Type Axis) const
+{
+	if (!SplineComponent.IsValid() || SelectedPointIndices.Num() == 0)
+	{
+		return FVector::ZeroVector;
+	}
+
+	// Accumulate axis vectors from each selected spline point
+	FVector AccumulatedAxis = FVector::ZeroVector;
+	int32 Count = 0;
+
+	for (int32 Index : SelectedPointIndices)
+	{
+		if (const FPointState* State = InitialPointStates.Find(Index))
+		{
+			const FQuat Rotation = State->Rotation;
+			FVector AxisVector;
+
+			switch (Axis)
+			{
+			case EAxis::X:
+				AxisVector = Rotation.GetForwardVector();
+				break;
+			case EAxis::Y:
+				AxisVector = Rotation.GetRightVector();
+				break;
+			case EAxis::Z:
+				AxisVector = Rotation.GetUpVector();
+				break;
+			default:
+				AxisVector = FVector::ZeroVector;
+				break;
+			}
+
+			AccumulatedAxis += AxisVector;
+			Count++;
+		}
+	}
+
+	if (Count == 0)
+	{
+		return FVector::ZeroVector;
+	}
+
+	return (AccumulatedAxis / Count).GetSafeNormal();
+}
+
 void FSplinePointTransformHandler::CaptureInitialState()
 {
 	InitialPointStates.Empty();

@@ -366,38 +366,33 @@ void FTransformController::ResetTransform(const ETransformMode Mode) const
 
 FVector FTransformController::GetAxisVector(const ETransformAxis::Type Axis) const
 {
-	// For local axes, get the first selected item's transform (only when single selection)
-	const bool bUseLocalAxis = TransformHandler && TransformHandler->GetSelectionCount() == 1;
-	FTransform FirstItemTransform = FTransform::Identity;
-	if (bUseLocalAxis)
-	{
-		FirstItemTransform = TransformHandler->GetFirstSelectedItemTransform();
-	}
+	// For local axes, compute the average axis direction across all selected items
+	const bool bHasSelection = TransformHandler && TransformHandler->HasSelection();
 
 	switch (Axis)
 	{
 	case ETransformAxis::LocalX:
-		if (bUseLocalAxis)
+		if (bHasSelection)
 		{
-			return FirstItemTransform.GetRotation().GetForwardVector();
+			return TransformHandler->ComputeAverageLocalAxis(EAxis::X);
 		}
 	// Fall through to WorldX
 	case ETransformAxis::WorldX:
 		return FVector(1.0, 0.0, 0.0);
 
 	case ETransformAxis::LocalY:
-		if (bUseLocalAxis)
+		if (bHasSelection)
 		{
-			return FirstItemTransform.GetRotation().GetRightVector();
+			return TransformHandler->ComputeAverageLocalAxis(EAxis::Y);
 		}
 	// Fall through to WorldY
 	case ETransformAxis::WorldY:
 		return FVector(0.0, 1.0, 0.0);
 
 	case ETransformAxis::LocalZ:
-		if (bUseLocalAxis)
+		if (bHasSelection)
 		{
-			return FirstItemTransform.GetRotation().GetUpVector();
+			return TransformHandler->ComputeAverageLocalAxis(EAxis::Z);
 		}
 	// Fall through to WorldZ
 	case ETransformAxis::WorldZ:
@@ -407,12 +402,11 @@ FVector FTransformController::GetAxisVector(const ETransformAxis::Type Axis) con
 	// Meaning that rotating on Z plane is equivalent to rotating on Z axis.
 	// X Plane
 	case ETransformAxis::LocalXPlane:
-		if (bUseLocalAxis)
+		if (bHasSelection)
 		{
 			return CurrentMode == ETransformMode::Rotation
-				       ? FirstItemTransform.GetRotation().GetForwardVector()
-				       : (FirstItemTransform.GetRotation().GetRightVector() + FirstItemTransform.GetRotation().
-					       GetUpVector()).GetSafeNormal();
+				       ? TransformHandler->ComputeAverageLocalAxis(EAxis::X)
+				       : (TransformHandler->ComputeAverageLocalAxis(EAxis::Y) + TransformHandler->ComputeAverageLocalAxis(EAxis::Z)).GetSafeNormal();
 		}
 	// Fall through to WorldXPlane
 	case ETransformAxis::WorldXPlane:
@@ -420,14 +414,13 @@ FVector FTransformController::GetAxisVector(const ETransformAxis::Type Axis) con
 			       ? FVector(1.0, 0.0, 0.0)
 			       : FVector(0.0, 1.0, 1.0).GetSafeNormal();
 
-	//Y Plane	
+	//Y Plane
 	case ETransformAxis::LocalYPlane:
-		if (bUseLocalAxis)
+		if (bHasSelection)
 		{
 			return CurrentMode == ETransformMode::Rotation
-				       ? FirstItemTransform.GetRotation().GetRightVector()
-				       : (FirstItemTransform.GetRotation().GetForwardVector() + FirstItemTransform.GetRotation().
-					       GetUpVector()).GetSafeNormal();
+				       ? TransformHandler->ComputeAverageLocalAxis(EAxis::Y)
+				       : (TransformHandler->ComputeAverageLocalAxis(EAxis::X) + TransformHandler->ComputeAverageLocalAxis(EAxis::Z)).GetSafeNormal();
 		}
 	// Fall through to WorldYPlane
 	case ETransformAxis::WorldYPlane:
@@ -435,14 +428,13 @@ FVector FTransformController::GetAxisVector(const ETransformAxis::Type Axis) con
 			       ? FVector(0.0, 1.0, 0.0)
 			       : FVector(1.0, 0.0, 1.0).GetSafeNormal();
 
-	//Z Plane	
+	//Z Plane
 	case ETransformAxis::LocalZPlane:
-		if (bUseLocalAxis)
+		if (bHasSelection)
 		{
 			return CurrentMode == ETransformMode::Rotation
-				       ? FirstItemTransform.GetRotation().GetUpVector()
-				       : (FirstItemTransform.GetRotation().GetForwardVector() + FirstItemTransform.GetRotation().
-					       GetRightVector()).GetSafeNormal();
+				       ? TransformHandler->ComputeAverageLocalAxis(EAxis::Z)
+				       : (TransformHandler->ComputeAverageLocalAxis(EAxis::X) + TransformHandler->ComputeAverageLocalAxis(EAxis::Y)).GetSafeNormal();
 		}
 	// Fall through to WorldZPlane
 	case ETransformAxis::WorldZPlane:
@@ -450,7 +442,7 @@ FVector FTransformController::GetAxisVector(const ETransformAxis::Type Axis) con
 			       ? FVector(0.0, 0.0, 1.0)
 			       : FVector(1.0, 1.0, 0.0).GetSafeNormal();
 
-	// No Axis (camera aligned)	
+	// No Axis (camera aligned)
 	case ETransformAxis::None:
 	default:
 		if (CurrentMode == ETransformMode::Translation)
@@ -497,13 +489,13 @@ FPlane FTransformController::ComputePlane(const FVector& InitialPos)
 		case ETransformAxis::WorldYPlane: return FPlane(FVector::UnitY(), TransformPivot.GetLocation().Y);
 		case ETransformAxis::WorldZPlane: return FPlane(FVector::UnitZ(), TransformPivot.GetLocation().Z);
 		case ETransformAxis::LocalXPlane:
-			Normal = -TransformHandler->GetFirstSelectedItemTransform().GetRotation().GetForwardVector();
+			Normal = -TransformHandler->ComputeAverageLocalAxis(EAxis::X);
 			break;
 		case ETransformAxis::LocalYPlane:
-			Normal = -TransformHandler->GetFirstSelectedItemTransform().GetRotation().GetRightVector();
+			Normal = -TransformHandler->ComputeAverageLocalAxis(EAxis::Y);
 			break;
 		case ETransformAxis::LocalZPlane:
-			Normal = -TransformHandler->GetFirstSelectedItemTransform().GetRotation().GetUpVector();
+			Normal = -TransformHandler->ComputeAverageLocalAxis(EAxis::Z);
 			break;
 		default: return FPlane(FVector::UnitZ(), 0);
 		}
@@ -739,54 +731,46 @@ void FTransformController::UpdateVisualization()
 		else
 		{
 			// plane transform : Switch on Axis
-			const bool bUseLocalAxis = TransformHandler && TransformHandler->GetSelectionCount() == 1
-				&& CurrentAxis > ETransformAxis::WorldZPlane;
-			FTransform FirstItemTransform = FTransform::Identity;
 			FVector Axis1, Axis2;
 			FLinearColor Color1, Color2;
-			if (bUseLocalAxis)
-			{
-				FirstItemTransform = TransformHandler->GetFirstSelectedItemTransform();
-			}
 			switch (CurrentAxis)
 			{
 			// X
 			case ETransformAxis::LocalXPlane:
-				Axis1 = FirstItemTransform.GetRotation().GetRightVector();
-				Axis2 = FirstItemTransform.GetRotation().GetUpVector();
+				Axis1 = TransformHandler->ComputeAverageLocalAxis(EAxis::Y);
+				Axis2 = TransformHandler->ComputeAverageLocalAxis(EAxis::Z);
+				Color1 = AxisColors[ETransformAxis::LocalY];
+				Color2 = AxisColors[ETransformAxis::LocalZ];
+				break;
 			case ETransformAxis::WorldXPlane:
-				if (!bUseLocalAxis)
-				{
-					Axis1 = FVector::UnitY();
-					Axis2 = FVector::UnitZ();
-				}
+				Axis1 = FVector::UnitY();
+				Axis2 = FVector::UnitZ();
 				Color1 = AxisColors[ETransformAxis::LocalY];
 				Color2 = AxisColors[ETransformAxis::LocalZ];
 				break;
 			// Y
 			case ETransformAxis::LocalYPlane:
-				Axis1 = FirstItemTransform.GetRotation().GetForwardVector();
-				Axis2 = FirstItemTransform.GetRotation().GetUpVector();
-			case ETransformAxis::WorldYPlane:
-				if (!bUseLocalAxis)
-				{
-					Axis1 = FVector::UnitX();
-					Axis2 = FVector::UnitZ();
-				}
+				Axis1 = TransformHandler->ComputeAverageLocalAxis(EAxis::X);
+				Axis2 = TransformHandler->ComputeAverageLocalAxis(EAxis::Z);
 				Color1 = AxisColors[ETransformAxis::LocalX];
 				Color2 = AxisColors[ETransformAxis::LocalZ];
-
 				break;
-			// Z			
+			case ETransformAxis::WorldYPlane:
+				Axis1 = FVector::UnitX();
+				Axis2 = FVector::UnitZ();
+				Color1 = AxisColors[ETransformAxis::LocalX];
+				Color2 = AxisColors[ETransformAxis::LocalZ];
+				break;
+			// Z
 			case ETransformAxis::LocalZPlane:
-				Axis1 = FirstItemTransform.GetRotation().GetForwardVector();
-				Axis2 = FirstItemTransform.GetRotation().GetRightVector();
+				Axis1 = TransformHandler->ComputeAverageLocalAxis(EAxis::X);
+				Axis2 = TransformHandler->ComputeAverageLocalAxis(EAxis::Y);
+				Color1 = AxisColors[ETransformAxis::LocalX];
+				Color2 = AxisColors[ETransformAxis::LocalY];
+				break;
 			case ETransformAxis::WorldZPlane:
-				if (!bUseLocalAxis)
-				{
-					Axis1 = FVector::UnitX();
-					Axis2 = FVector::UnitY();
-				}
+				Axis1 = FVector::UnitX();
+				Axis2 = FVector::UnitY();
 				Color1 = AxisColors[ETransformAxis::LocalX];
 				Color2 = AxisColors[ETransformAxis::LocalY];
 				break;

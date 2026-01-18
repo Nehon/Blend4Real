@@ -33,6 +33,62 @@ FTransform FActorTransformHandler::GetFirstSelectedItemTransform() const
 	return FTransform::Identity;
 }
 
+FVector FActorTransformHandler::ComputeAverageLocalAxis(EAxis::Type Axis) const
+{
+	if (!GEditor)
+	{
+		return FVector::ZeroVector;
+	}
+
+	USelection* SelectedActors = GEditor->GetSelectedActors();
+	if (SelectedActors->Num() == 0)
+	{
+		return FVector::ZeroVector;
+	}
+
+	// Accumulate axis vectors from each selected actor
+	FVector AccumulatedAxis = FVector::ZeroVector;
+	int32 Count = 0;
+
+	for (FSelectionIterator It(*SelectedActors); It; ++It)
+	{
+		if (const AActor* Actor = Cast<AActor>(*It))
+		{
+			if (const FTransform* Transform = InitialTransforms.Find(Actor->GetUniqueID()))
+			{
+				const FQuat Rotation = Transform->GetRotation();
+				FVector AxisVector;
+
+				switch (Axis)
+				{
+				case EAxis::X:
+					AxisVector = Rotation.GetForwardVector();
+					break;
+				case EAxis::Y:
+					AxisVector = Rotation.GetRightVector();
+					break;
+				case EAxis::Z:
+					AxisVector = Rotation.GetUpVector();
+					break;
+				default:
+					AxisVector = FVector::ZeroVector;
+					break;
+				}
+
+				AccumulatedAxis += AxisVector;
+				Count++;
+			}
+		}
+	}
+
+	if (Count == 0)
+	{
+		return FVector::ZeroVector;
+	}
+
+	return (AccumulatedAxis / Count).GetSafeNormal();
+}
+
 void FActorTransformHandler::CaptureInitialState()
 {
 	InitialTransforms.Empty();

@@ -39,6 +39,16 @@ public:
 	 */
 	virtual FTransform GetFirstSelectedItemTransform() const = 0;
 
+	/**
+	 * Computes the average local axis direction across all selected items.
+	 * For each selected item, extracts the requested axis from its rotation,
+	 * then averages all those direction vectors.
+	 *
+	 * @param Axis - Which axis to compute (X=Forward, Y=Right, Z=Up)
+	 * @return The averaged and normalized axis direction vector
+	 */
+	virtual FVector ComputeAverageLocalAxis(EAxis::Type Axis) const = 0;
+
 	// === State Management (for cancel) ===
 
 	/** Capture initial transforms of all selected items */

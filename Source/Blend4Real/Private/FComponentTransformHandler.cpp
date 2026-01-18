@@ -41,6 +41,57 @@ FTransform FComponentTransformHandler::GetFirstSelectedItemTransform() const
 	return FTransform::Identity;
 }
 
+FVector FComponentTransformHandler::ComputeAverageLocalAxis(EAxis::Type Axis) const
+{
+	USelection* Selection = GetSelectedComponents();
+	if (!Selection || Selection->Num() == 0)
+	{
+		return FVector::ZeroVector;
+	}
+
+	// Accumulate axis vectors from each selected component
+	FVector AccumulatedAxis = FVector::ZeroVector;
+	int32 Count = 0;
+
+	for (FSelectionIterator It(*Selection); It; ++It)
+	{
+		if (USceneComponent* Component = Cast<USceneComponent>(*It))
+		{
+			if (const FTransform* Transform = InitialTransforms.Find(Component->GetUniqueID()))
+			{
+				const FQuat Rotation = Transform->GetRotation();
+				FVector AxisVector;
+
+				switch (Axis)
+				{
+				case EAxis::X:
+					AxisVector = Rotation.GetForwardVector();
+					break;
+				case EAxis::Y:
+					AxisVector = Rotation.GetRightVector();
+					break;
+				case EAxis::Z:
+					AxisVector = Rotation.GetUpVector();
+					break;
+				default:
+					AxisVector = FVector::ZeroVector;
+					break;
+				}
+
+				AccumulatedAxis += AxisVector;
+				Count++;
+			}
+		}
+	}
+
+	if (Count == 0)
+	{
+		return FVector::ZeroVector;
+	}
+
+	return (AccumulatedAxis / Count).GetSafeNormal();
+}
+
 void FComponentTransformHandler::CaptureInitialState()
 {
 	InitialTransforms.Empty();
