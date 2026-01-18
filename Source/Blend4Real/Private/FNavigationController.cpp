@@ -3,6 +3,7 @@
 #include "Blend4RealSettings.h"
 #include "Editor.h"
 #include "EditorViewportClient.h"
+#include "MouseDeltaTracker.h"
 #include "UnrealClient.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Engine/Selection.h"
@@ -216,6 +217,12 @@ void FNavigationController::UpdateOrbit(const FVector2D& Delta) const
 		return;
 	}
 
+	// Mark as external movement to prevent click/selection processing on mouse up
+	if (FMouseDeltaTracker* MouseDeltaTracker = ViewportClient->GetMouseDeltaTracker())
+	{
+		MouseDeltaTracker->SetExternalMovement();
+	}
+
 	if (bIsOrbitCameraMode)
 	{
 		UpdateOrbitCameraMode(ViewportClient, Delta);
@@ -296,6 +303,12 @@ void FNavigationController::UpdatePan(const FVector2D& MousePosition)
 	if (!ViewportClient)
 	{
 		return;
+	}
+
+	// Mark as external movement to prevent click/selection processing on mouse up
+	if (FMouseDeltaTracker* MouseDeltaTracker = ViewportClient->GetMouseDeltaTracker())
+	{
+		MouseDeltaTracker->SetExternalMovement();
 	}
 
 	if (bIsOrbitCameraMode)
