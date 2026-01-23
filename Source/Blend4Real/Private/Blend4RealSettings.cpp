@@ -1,5 +1,10 @@
 #include "Blend4RealSettings.h"
 #include "Logging/MessageLog.h"
+#include "Framework/Application/SlateApplication.h"
+
+#if PLATFORM_WINDOWS
+#include "Windows/WindowsHWrapper.h"
+#endif
 
 UBlend4RealSettings::FOnBlend4RealSettingsChanged UBlend4RealSettings::OnSettingsChanged;
 
@@ -40,9 +45,21 @@ bool UBlend4RealSettings::MatchesChord(const FInputChord& Chord, const FKeyEvent
 
 bool UBlend4RealSettings::MatchesChord(const FInputChord& Chord, const FPointerEvent& MouseEvent)
 {
+#if PLATFORM_WINDOWS
+	// On Windows, query modifier keys directly from the Windows API using GetAsyncKeyState.
+	// This bypasses Unreal's cached modifier state which can be stale/incorrect
+	// when using key mappers that emulate modifier+mouse button combinations (e.g., Shift+MMB).
+	const bool bShiftDown = (::GetAsyncKeyState(VK_LSHIFT) & 0x8000) != 0 || (::GetAsyncKeyState(VK_RSHIFT) & 0x8000) != 0;
+	const bool bCtrlDown = (::GetAsyncKeyState(VK_LCONTROL) & 0x8000) != 0 || (::GetAsyncKeyState(VK_RCONTROL) & 0x8000) != 0;
+	const bool bAltDown = (::GetAsyncKeyState(VK_LMENU) & 0x8000) != 0 || (::GetAsyncKeyState(VK_RMENU) & 0x8000) != 0;
+	const bool bCmdDown = false; // Windows doesn't have Command key
+	const EModifierKey::Type ModMask = EModifierKey::FromBools(bCtrlDown, bAltDown, bShiftDown, bCmdDown);
+#else
+	// On other platforms (macOS, Linux), use the FPointerEvent's modifier state
 	const EModifierKey::Type ModMask = EModifierKey::FromBools(
 		MouseEvent.IsControlDown(), MouseEvent.IsAltDown(),
 		MouseEvent.IsShiftDown(), MouseEvent.IsCommandDown());
+#endif
 	return MatchesChord(Chord, MouseEvent.GetEffectingButton(), ModMask);
 }
 
