@@ -257,8 +257,7 @@ void FTransformController::UpdateFromMouseMove(const FVector2D& MousePosition, b
 	if (CurrentAxis == ETransformAxis::None || CurrentAxis >= ETransformAxis::WorldXPlane)
 	{
 		const ULevelEditorViewportSettings* ViewportSettings = GetDefault<ULevelEditorViewportSettings>();
-		const bool Project = ViewportSettings->SnapToSurface.bEnabled && TransformHandler && TransformHandler->
-			GetSelectionCount() == 1;
+		const bool Project = ViewportSettings->SnapToSurface.bEnabled && TransformHandler;
 
 		if (Project)
 		{
@@ -269,30 +268,37 @@ void FTransformController::UpdateFromMouseMove(const FVector2D& MousePosition, b
 			{
 				const bool AlignToNormal = ViewportSettings->SnapToSurface.bSnapRotation;
 				const float Offset = ViewportSettings->SnapToSurface.SnapOffsetExtent;
-				FVector Location = Result.Location + Result.Normal * Offset;
+				FVector NewPivotLocation = Result.Location + Result.Normal * Offset;
+
+				// Apply grid snapping to the new pivot location if enabled
 				const bool IsSnapTrEnabled = bInvertSnap
 					                             ? !ViewportSettings->GridEnabled
 					                             : ViewportSettings->GridEnabled;
 				if (IsSnapTrEnabled)
 				{
-					FVector SnappedLocation = Location - TransformPivot.GetLocation();
 					const float GridSize = GEditor->GetGridSize();
-					SnappedLocation = FVector(
-						ceilf(SnappedLocation.X / GridSize) * GridSize,
-						ceilf(SnappedLocation.Y / GridSize) * GridSize,
-						ceilf(SnappedLocation.Z / GridSize) * GridSize);
-					Location = SnappedLocation + TransformPivot.GetLocation();
-					SetDirectTransformToSelectedActors(&Location);
+					NewPivotLocation = FVector(
+						ceilf(NewPivotLocation.X / GridSize) * GridSize,
+						ceilf(NewPivotLocation.Y / GridSize) * GridSize,
+						ceilf(NewPivotLocation.Z / GridSize) * GridSize);
 				}
-				else if (AlignToNormal)
+
+				// Build the new pivot transform
+				FTransform NewPivotTransform;
+				NewPivotTransform.SetLocation(NewPivotLocation);
+
+				if (AlignToNormal)
 				{
+					// Compute rotation that aligns Z-axis with surface normal
 					const FRotator SurfaceRotation = FRotationMatrix::MakeFromZ(Result.Normal).Rotator();
-					SetDirectTransformToSelectedActors(&Location, &SurfaceRotation);
+					NewPivotTransform.SetRotation(SurfaceRotation.Quaternion());
 				}
-				else
-				{
-					SetDirectTransformToSelectedActors(&Location);
-				}
+
+				// Apply transform around pivot - moves all actors such that the pivot
+				// ends up at NewPivotLocation, and rotates all actors if AlignToNormal
+				TransformHandler->ApplyTransformAroundPivot(TransformPivot, NewPivotTransform);
+				UpdateVisualization();
+				return;
 			}
 		}
 		else
