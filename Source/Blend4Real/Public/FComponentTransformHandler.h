@@ -30,8 +30,10 @@ public:
 	virtual void RestoreInitialState() override;
 
 	// === Transform Application ===
-	virtual void
-	ApplyTransformAroundPivot(const FTransform& InitialPivot, const FTransform& NewPivotTransform) override;
+	virtual void ApplyTransformAroundPivot(
+		const FTransform& InitialPivot,
+		const FTransform& NewPivotTransform,
+		TOptional<EAxis::Type> LocalScaleAxis = TOptional<EAxis::Type>()) override;
 	virtual void SetDirectTransform(const FVector* Location, const FRotator* Rotation, const FVector* Scale) override;
 
 	// === Transaction Handling ===

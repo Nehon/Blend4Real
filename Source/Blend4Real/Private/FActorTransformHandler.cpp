@@ -131,11 +131,32 @@ void FActorTransformHandler::RestoreInitialState()
 }
 
 void FActorTransformHandler::ApplyTransformAroundPivot(const FTransform& InitialPivot,
-                                                       const FTransform& NewPivotTransform)
+                                                       const FTransform& NewPivotTransform,
+                                                       TOptional<EAxis::Type> LocalScaleAxis)
 {
 	if (!GEditor)
 	{
 		return;
+	}
+
+	// Calculate common deltas
+	const FVector DeltaTranslation = NewPivotTransform.GetLocation() - InitialPivot.GetLocation();
+	const FQuat DeltaRotation = NewPivotTransform.GetRotation() * InitialPivot.GetRotation().Inverse();
+	const FVector DeltaScale = NewPivotTransform.GetScale3D() / InitialPivot.GetScale3D();
+	const FVector PivotLocation = InitialPivot.GetLocation();
+
+	// For local-axis scale, extract the actual scale factor from the encoded DeltaScale
+	float LocalScaleFactor = 1.0f;
+	if (LocalScaleAxis.IsSet())
+	{
+		// DeltaScale was encoded as: Direction * (ScaleFactor - 1) + 1
+		// where Direction is the local axis in world coordinates
+		// Recover the scale factor from the magnitude of the offset
+		const FVector ScaleOffset = DeltaScale - FVector::OneVector;
+		const float ScaleOffsetLength = ScaleOffset.Size();
+		// Determine direction: if any component is positive, we're scaling up
+		const bool bScalingUp = ScaleOffset.GetMax() > KINDA_SMALL_NUMBER;
+		LocalScaleFactor = bScalingUp ? (1.0f + ScaleOffsetLength) : (1.0f - ScaleOffsetLength);
 	}
 
 	USelection* SelectedActors = GEditor->GetSelectedActors();
@@ -149,11 +170,65 @@ void FActorTransformHandler::ApplyTransformAroundPivot(const FTransform& Initial
 				continue;
 			}
 
-			// Transform actor relative to pivot:
-			// 1. Remove initial pivot transform
-			// 2. Apply new pivot transform
-			FTransform ActorTransform = *InitialActorTransform * InitialPivot.Inverse();
-			ActorTransform = ActorTransform * NewPivotTransform;
+			FTransform ActorTransform;
+
+			if (LocalScaleAxis.IsSet())
+			{
+				// Local-axis scale: apply scale in the actor's local coordinate system
+				const FQuat ActorRotation = InitialActorTransform->GetRotation();
+
+				// Calculate position: transform offset to local space, scale, transform back
+				const FVector WorldOffset = InitialActorTransform->GetLocation() - PivotLocation;
+				FVector LocalOffset = ActorRotation.UnrotateVector(WorldOffset);
+
+				// Scale only the specified axis in local space
+				switch (LocalScaleAxis.GetValue())
+				{
+				case EAxis::X:
+					LocalOffset.X *= LocalScaleFactor;
+					break;
+				case EAxis::Y:
+					LocalOffset.Y *= LocalScaleFactor;
+					break;
+				case EAxis::Z:
+					LocalOffset.Z *= LocalScaleFactor;
+					break;
+				default:
+					break;
+				}
+
+				const FVector NewWorldOffset = ActorRotation.RotateVector(LocalOffset);
+				const FVector NewLocation = PivotLocation + DeltaTranslation + NewWorldOffset;
+
+				// Apply scale to actor's own scale in local space
+				FVector NewScale = InitialActorTransform->GetScale3D();
+				switch (LocalScaleAxis.GetValue())
+				{
+				case EAxis::X:
+					NewScale.X *= LocalScaleFactor;
+					break;
+				case EAxis::Y:
+					NewScale.Y *= LocalScaleFactor;
+					break;
+				case EAxis::Z:
+					NewScale.Z *= LocalScaleFactor;
+					break;
+				default:
+					break;
+				}
+
+				// Rotation is unchanged for scale operations
+				ActorTransform = FTransform(
+					DeltaRotation * InitialActorTransform->GetRotation(),
+					NewLocation,
+					NewScale);
+			}
+			else
+			{
+				// Standard world-space transform (translation, rotation, uniform scale)
+				ActorTransform = *InitialActorTransform * InitialPivot.Inverse();
+				ActorTransform = ActorTransform * NewPivotTransform;
+			}
 
 			if (!ActorTransform.ContainsNaN())
 			{

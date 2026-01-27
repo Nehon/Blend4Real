@@ -67,9 +67,16 @@ public:
 	 * For Rotation: NewRot = DeltaRotation * InitialRot (around pivot)
 	 * For Scale: NewScale = InitialScale * DeltaScale (around pivot)
 	 *
+	 * @param InitialPivot - The initial pivot transform
 	 * @param NewPivotTransform - The new pivot transform (includes translation/rotation/scale delta)
+	 * @param LocalScaleAxis - When set, indicates axis-constrained scaling in local space.
+	 *                         The scale factor is extracted from NewPivotTransform and applied
+	 *                         along each object's local axis to avoid non-orthogonal transforms.
 	 */
-	virtual void ApplyTransformAroundPivot(const FTransform& InitialPivot, const FTransform& NewPivotTransform) = 0;
+	virtual void ApplyTransformAroundPivot(
+		const FTransform& InitialPivot,
+		const FTransform& NewPivotTransform,
+		TOptional<EAxis::Type> LocalScaleAxis = TOptional<EAxis::Type>()) = 0;
 
 	/**
 	 * Set absolute transform values on selected items.

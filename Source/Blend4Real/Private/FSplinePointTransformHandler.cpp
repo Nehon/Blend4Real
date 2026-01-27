@@ -162,7 +162,9 @@ void FSplinePointTransformHandler::RestoreInitialState()
 	}
 }
 
-void FSplinePointTransformHandler::ApplyTransformAroundPivot(const FTransform& InitialPivot, const FTransform& NewPivotTransform)
+void FSplinePointTransformHandler::ApplyTransformAroundPivot(const FTransform& InitialPivot,
+                                                             const FTransform& NewPivotTransform,
+                                                             TOptional<EAxis::Type> LocalScaleAxis)
 {
 	if (!SplineComponent.IsValid())
 	{
@@ -176,6 +178,16 @@ void FSplinePointTransformHandler::ApplyTransformAroundPivot(const FTransform& I
 
 	const FVector PivotLocation = InitialPivot.GetLocation();
 
+	// For local-axis scale, extract the actual scale factor from the encoded DeltaScale
+	float LocalScaleFactor = 1.0f;
+	if (LocalScaleAxis.IsSet())
+	{
+		const FVector ScaleOffset = DeltaScale - FVector::OneVector;
+		const float ScaleOffsetLength = ScaleOffset.Size();
+		const bool bScalingUp = ScaleOffset.GetMax() > KINDA_SMALL_NUMBER;
+		LocalScaleFactor = bScalingUp ? (1.0f + ScaleOffsetLength) : (1.0f - ScaleOffsetLength);
+	}
+
 	for (int32 Index : SelectedPointIndices)
 	{
 		const FPointState* InitialState = InitialPointStates.Find(Index);
@@ -184,24 +196,81 @@ void FSplinePointTransformHandler::ApplyTransformAroundPivot(const FTransform& I
 			continue;
 		}
 
-		// Calculate position relative to pivot
-		const FVector InitialRelativeToPivot = InitialState->Location - PivotLocation;
+		FVector NewLocation;
+		FQuat NewRotation;
+		FVector NewArriveTangent;
+		FVector NewLeaveTangent;
 
-		// Apply rotation around pivot
-		const FVector RotatedOffset = DeltaRotation.RotateVector(InitialRelativeToPivot);
+		if (LocalScaleAxis.IsSet())
+		{
+			// Local-axis scale: apply scale in the point's local coordinate system
+			const FQuat PointRotation = InitialState->Rotation;
 
-		// Apply scale around pivot
-		const FVector ScaledOffset = RotatedOffset * DeltaScale;
+			// Calculate position: transform offset to local space, scale, transform back
+			const FVector WorldOffset = InitialState->Location - PivotLocation;
+			FVector LocalOffset = PointRotation.UnrotateVector(WorldOffset);
 
-		// Calculate new world position
-		const FVector NewLocation = PivotLocation + DeltaTranslation + ScaledOffset;
+			// Scale only the specified axis in local space
+			switch (LocalScaleAxis.GetValue())
+			{
+			case EAxis::X:
+				LocalOffset.X *= LocalScaleFactor;
+				break;
+			case EAxis::Y:
+				LocalOffset.Y *= LocalScaleFactor;
+				break;
+			case EAxis::Z:
+				LocalOffset.Z *= LocalScaleFactor;
+				break;
+			default:
+				break;
+			}
 
-		// Apply rotation to the point's own rotation
-		const FQuat NewRotation = DeltaRotation * InitialState->Rotation;
+			const FVector NewWorldOffset = PointRotation.RotateVector(LocalOffset);
+			NewLocation = PivotLocation + DeltaTranslation + NewWorldOffset;
 
-		// Apply scale to tangents (for scale mode)
-		const FVector NewArriveTangent = DeltaRotation.RotateVector(InitialState->ArriveTangent) * DeltaScale.X;
-		const FVector NewLeaveTangent = DeltaRotation.RotateVector(InitialState->LeaveTangent) * DeltaScale.X;
+			// Rotation is unchanged for scale operations
+			NewRotation = DeltaRotation * InitialState->Rotation;
+
+			// Scale tangents in local space
+			FVector LocalArriveTangent = PointRotation.UnrotateVector(InitialState->ArriveTangent);
+			FVector LocalLeaveTangent = PointRotation.UnrotateVector(InitialState->LeaveTangent);
+
+			switch (LocalScaleAxis.GetValue())
+			{
+			case EAxis::X:
+				LocalArriveTangent.X *= LocalScaleFactor;
+				LocalLeaveTangent.X *= LocalScaleFactor;
+				break;
+			case EAxis::Y:
+				LocalArriveTangent.Y *= LocalScaleFactor;
+				LocalLeaveTangent.Y *= LocalScaleFactor;
+				break;
+			case EAxis::Z:
+				LocalArriveTangent.Z *= LocalScaleFactor;
+				LocalLeaveTangent.Z *= LocalScaleFactor;
+				break;
+			default:
+				break;
+			}
+
+			NewArriveTangent = DeltaRotation.RotateVector(PointRotation.RotateVector(LocalArriveTangent));
+			NewLeaveTangent = DeltaRotation.RotateVector(PointRotation.RotateVector(LocalLeaveTangent));
+		}
+		else
+		{
+			// Standard world-space transform
+			const FVector InitialRelativeToPivot = InitialState->Location - PivotLocation;
+			const FVector RotatedOffset = DeltaRotation.RotateVector(InitialRelativeToPivot);
+			const FVector ScaledOffset = RotatedOffset * DeltaScale;
+
+			NewLocation = PivotLocation + DeltaTranslation + ScaledOffset;
+			NewRotation = DeltaRotation * InitialState->Rotation;
+
+			// Apply scale to tangents (for scale mode)
+			NewArriveTangent = DeltaRotation.RotateVector(InitialState->ArriveTangent) * DeltaScale.X;
+			NewLeaveTangent = DeltaRotation.RotateVector(InitialState->LeaveTangent) * DeltaScale.X;
+		}
 
 		// Set the new values (defer spline update until all points are modified)
 		SplineComponent->SetLocationAtSplinePoint(Index, NewLocation, ESplineCoordinateSpace::World, false);

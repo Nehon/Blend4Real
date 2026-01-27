@@ -618,7 +618,27 @@ void FTransformController::TransformSelectedActors(const FVector& Direction, con
 	}
 
 	// Apply the new pivot transform to selection via handler
-	TransformHandler->ApplyTransformAroundPivot(TransformPivot, NewPivotTransform);
+	// For local-axis scale, pass the axis so handlers can apply scale in local space
+	TOptional<EAxis::Type> LocalScaleAxis;
+	if (CurrentMode == ETransformMode::Scale && CurrentAxis >= ETransformAxis::LocalX && CurrentAxis <= ETransformAxis::LocalZ)
+	{
+		// Convert LocalX/LocalY/LocalZ to EAxis::Type
+		switch (CurrentAxis)
+		{
+		case ETransformAxis::LocalX:
+			LocalScaleAxis = EAxis::X;
+			break;
+		case ETransformAxis::LocalY:
+			LocalScaleAxis = EAxis::Y;
+			break;
+		case ETransformAxis::LocalZ:
+			LocalScaleAxis = EAxis::Z;
+			break;
+		default:
+			break;
+		}
+	}
+	TransformHandler->ApplyTransformAroundPivot(TransformPivot, NewPivotTransform, LocalScaleAxis);
 
 	GEditor->RedrawLevelEditingViewports();
 }
