@@ -8,6 +8,7 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Editor.h"
 #include "EditorModeManager.h"
+#include "EditorViewportClient.h"
 #include "LevelEditor.h"
 #include "PlatformInputsUtils.h"
 #include "Misc/ConfigCacheIni.h"
@@ -48,12 +49,20 @@ void FBlend4RealInputProcessor::RegisterInputProcessor()
 
 void FBlend4RealInputProcessor::Init(TSharedPtr<ILevelEditor>)
 {
+	// IMPORTANT: FEditorModeTools uses a shared config key for ShowWidget.
+	// If the editor was closed while blend4real was enabled, ShowWidget=false was saved.
+	// On this startup, ALL mode tools (including future ones like IK Rig) will load ShowWidget=false.
+	// We MUST restore ShowWidget=true and save config BEFORE any other mode tools are created.
+	// This ensures new mode tools load the correct value.
+	GLevelEditorModeTools().SetShowWidget(true);
+	GLevelEditorModeTools().SaveConfig();
+
 	// Load saved enabled state from global editor settings (stored in user's AppData, not project)
 	bool bWasEnabled = false;
 	GConfig->GetBool(TEXT("Blend4Real"), TEXT("bEnabled"), bWasEnabled, GEditorSettingsIni);
 	if (bWasEnabled)
 	{
-		// the plugin was enabled when the editor was shit down, we toggle it on.
+		// The plugin was enabled when the editor was shut down, we toggle it on.
 		ToggleEnabled();
 	}
 	// clean up level editor callback
@@ -73,11 +82,36 @@ void FBlend4RealInputProcessor::UnregisterInputProcessor()
 void FBlend4RealInputProcessor::ToggleEnabled(const bool bInvalidateRender)
 {
 	bIsEnabled = !bIsEnabled;
+
 	// Toggle transform gizmo visibility (hide when BlenderControls enabled, show when disabled)
-	GLevelEditorModeTools().SetShowWidget(!bIsEnabled);
+	// IMPORTANT: FEditorModeTools uses a SHARED config key for ShowWidget. When EditorExit()
+	// calls GLevelEditorModeTools().SaveConfig(), this value is persisted. On next startup,
+	// ALL mode tools (Level Editor, IK Rig, Animation) load from this shared config.
+	//
+	// Therefore, when DISABLING blend4real, we must:
+	// 1. Set ShowWidget=true
+	// 2. Save the config immediately to prevent corruption if the editor closes while enabled
+	const bool bShouldShowWidget = !bIsEnabled;
+	GLevelEditorModeTools().SetShowWidget(bShouldShowWidget);
+
+	// When disabling, save config immediately to ensure ShowWidget=true is persisted.
+	// This prevents the "no gizmos anywhere" bug if the editor was closed while enabled.
+	if (bShouldShowWidget)
+	{
+		GLevelEditorModeTools().SaveConfig();
+	}
+
 	if (bInvalidateRender)
 	{
-		Blend4RealUtils::GetFocusedViewportClient()->Invalidate();
+		// Invalidate the focused viewport for visual update
+		if (FEditorViewportClient* ViewportClient = Blend4RealUtils::GetFocusedViewportClient())
+		{
+			ViewportClient->Invalidate();
+		}
+		else if (GEditor && GEditor->GetActiveViewport())
+		{
+			GEditor->GetActiveViewport()->Invalidate();
+		}
 	}
 
 	// Save enabled state to global editor settings (stored in user's AppData, not project)
@@ -101,6 +135,12 @@ void FBlend4RealInputProcessor::ToggleEnabled(const bool bInvalidateRender)
 
 void FBlend4RealInputProcessor::Tick(const float DeltaTime, FSlateApplication& SlateApp, TSharedRef<ICursor> Cursor)
 {
+	// Note: We intentionally do NOT sync widget visibility per-viewport here.
+	// Doing so would hide gizmos in Animation/IK Rig editors, and when blend4real
+	// is disabled, we can't reliably restore them (the mode tools may differ from
+	// the viewport where the toggle button was clicked).
+	// Instead, we only toggle the Level Editor's gizmo in ToggleEnabled().
+
 	// Update pivot visualization position on every tick to handle camera changes (zoom, etc.)
 	if (bIsEnabled && PivotVisualizationController.IsValid())
 	{
