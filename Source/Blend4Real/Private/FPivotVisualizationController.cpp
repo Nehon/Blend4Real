@@ -242,7 +242,8 @@ void FPivotVisualizationController::UpdatePivotPosition()
 		HidePivotMarker();
 		return;
 	}
-
+	// scale with dpi
+	ViewportPosition /= ViewportClient->GetDPIScale();
 	// Update the canvas slot position
 	// The slot uses the position as the anchor point, and we use center alignment
 	if (PivotMarkerSlot)
