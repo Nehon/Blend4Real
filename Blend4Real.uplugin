@@ -1,15 +1,15 @@
 {
   "FileVersion": 1,
   "Version": 1,
-  "VersionName": "1.0",
+  "VersionName": "1.1.0",
   "FriendlyName": "Blend4Real",
   "Description": "UE5 Plugin to use Blender viewport controls and object manipulation in Unreal editor",
   "Category": "Editor",
-  "CreatedBy": "Nehon",
+  "CreatedBy": "Nehon (Rémy Bouquet)",
   "CreatedByURL": "https://www.github.com/nehon",
   "DocsURL": "https://github.com/Nehon/Blend4Real/blob/main/README.md",
-  "MarketplaceURL": "",
-  "SupportURL": "",
+  "FabURL":  "com.epicgames.launcher://ue/Fab/product/fc1710f2-69b6-4d24-b953-6ddcb76bb9ad",
+  "SupportURL": "https://github.com/Nehon/Blend4Real/issues",
   "CanContainContent": false,
   "IsBetaVersion": false,
   "IsExperimentalVersion": false,
@@ -18,7 +18,18 @@
     {
       "Name": "Blend4Real",
       "Type": "Editor",
-      "LoadingPhase": "Default"
+      "LoadingPhase": "Default",
+      "PlatformAllowList": [
+        "Win64",
+        "Mac"
+      ],
+      "PlatformDenyList": [
+        "Linux"
+      ]
     }
+  ],
+  "SupportedTargetPlatforms": [
+    "Win64",
+    "Mac"
   ]
 }

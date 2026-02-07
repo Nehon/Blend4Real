@@ -1,3 +1,5 @@
+// Copyright 2025-Present - Nehon (Rémy Bouquet). All Rights Reserved.
+
 #include "FSCSTransformHandler.h"
 #include "BlueprintEditor.h"
 #include "SSubobjectEditor.h"

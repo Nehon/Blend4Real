@@ -1,3 +1,5 @@
+// Copyright 2025-Present - Nehon (Rémy Bouquet). All Rights Reserved.
+
 #include "Blend4RealInputProcessor.h"
 #include "Blend4RealSettings.h"
 #include "Blend4RealUtils.h"

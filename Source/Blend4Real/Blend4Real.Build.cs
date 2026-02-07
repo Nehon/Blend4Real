@@ -1,4 +1,4 @@
-// Copyright ppmpreetham 2025-03-04 10:18:21, All Rights Reserved.
+// Copyright 2025-Present - Nehon (Rémy Bouquet). All Rights Reserved.
 
 using UnrealBuildTool;
 

@@ -1,3 +1,5 @@
+// Copyright 2025-Present - Nehon (Rémy Bouquet). All Rights Reserved.
+
 #include "PlatformInputsUtils.h"
 #if PLATFORM_MAC
 #include <Carbon/Carbon.h>  // For UCKeyTranslate, TIS functions

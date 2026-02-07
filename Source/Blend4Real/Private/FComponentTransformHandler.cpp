@@ -1,3 +1,5 @@
+// Copyright 2025-Present - Nehon (Rémy Bouquet). All Rights Reserved.
+
 #include "FComponentTransformHandler.h"
 #include "Editor.h"
 #include "Engine/Selection.h"

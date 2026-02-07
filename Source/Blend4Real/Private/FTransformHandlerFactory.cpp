@@ -1,3 +1,5 @@
+// Copyright 2025-Present - Nehon (Rémy Bouquet). All Rights Reserved.
+
 #include "FTransformHandlerFactory.h"
 #include "IBlend4RealTransformHandler.h"
 #include "FActorTransformHandler.h"

@@ -1,3 +1,5 @@
+// Copyright 2025-Present - Nehon (Rémy Bouquet). All Rights Reserved.
+
 #include "Blend4RealUtils.h"
 #include "Editor.h"
 #include "EditorModeManager.h"

@@ -1,3 +1,5 @@
+// Copyright 2025-Present - Nehon (Rémy Bouquet). All Rights Reserved.
+
 #include "Blend4Real.h"
 #include "Blend4RealCommands.h"
 #include "Blend4RealStyle.h"

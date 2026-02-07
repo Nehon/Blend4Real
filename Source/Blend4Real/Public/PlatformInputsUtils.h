@@ -1,4 +1,7 @@
+// Copyright 2025-Present - Nehon (Rémy Bouquet). All Rights Reserved.
+
 #pragma once
+
 namespace PlatformInputs
 {
 	/** Transforms KeyEvent into real character to be able to use 0-9 input keys on AZERTY keyboards with no num pad*/

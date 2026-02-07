@@ -1,3 +1,5 @@
+// Copyright 2025-Present - Nehon (Rémy Bouquet). All Rights Reserved.
+
 #include "FNavigationController.h"
 #include "Blend4RealUtils.h"
 #include "Blend4RealSettings.h"

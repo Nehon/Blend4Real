@@ -1,3 +1,5 @@
+// Copyright 2025-Present - Nehon (Rémy Bouquet). All Rights Reserved.
+
 #include "Blend4RealCommands.h"
 
 #define LOCTEXT_NAMESPACE "FBlend4RealModule"

@@ -9,8 +9,37 @@ If, like me, you do a lot of back and forth between Blender and Unreal, and you 
 This project started as a fork of [b3d-nav](https://github.com/ppmpreetham/b3d-nav) by [ppmpreetham](https://github.com/ppmpreetham). It has since been significantly expanded to support the minimum set of features from Blender that I needed to feel comfortable working in Unreal.\
 This project is under MIT license, and is freely available on fab.com. It's given as is, you can use it, modify it for any purpose, without even mentionning me.\
 In return, don't expect me to take in any feature requests. I will eventually fix bugs, and probably enhance it as I use it myself.
-So if you want an extra feature, you'll have to implement it yourself, and optionnally do a Pull Request on this repo, and I'll consider merging it. 
+So if you want an extra feature, you'll have to implement it yourself, and optionnally do a Pull Request on this repo, and I'll consider merging it.
 
+## Installation
+
+### From Fab.com
+1. Download the plugin from [fab.com](https://fab.com)
+2. Install via the Epic Games Launcher or extract to your engine's `Plugins` folder
+
+### Manual Installation
+1. Go to the [Releases](https://github.com/Nehon/Blend4Real/releases) section on GitHub
+2. Download the latest release for your Unreal Engine version
+3. Extract the `Blend4Real` folder to one of these locations:
+   - **Project Plugin:** `YourProject/Plugins/Blend4Real/`
+   - **Engine Plugin:** `UnrealEngine/Engine/Plugins/Blend4Real/`
+4. Launch the editor
+
+### (Optional) Build the Plugin
+If you want to build the plugin from source:
+1. Clone this repository into your project's Plugins folder: `YourProject/Plugins/Blend4Real/`
+2. Regenerate project files (right-click `.uproject` > Generate Visual Studio project files)
+3. Build the project
+
+### Enabling the Plugin
+1. Open your project in Unreal Editor
+2. Go to **Edit > Plugins**
+3. Search for "Blend4Real"
+4. Check the **Enabled** checkbox
+5. Restart the editor when prompted
+
+### Verification
+Once enabled, you should see a Blend4Real toggle button in the viewport toolbar. Click it to enable Blender-style controls.
 
 ## Blender-Style Features
 

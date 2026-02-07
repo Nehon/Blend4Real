@@ -1,3 +1,5 @@
+// Copyright 2025-Present - Nehon (Rémy Bouquet). All Rights Reserved.
+
 #include "FTransformController.h"
 #include "Blend4RealUtils.h"
 #include "IBlend4RealTransformHandler.h"
