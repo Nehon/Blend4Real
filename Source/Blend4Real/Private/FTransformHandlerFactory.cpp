@@ -6,6 +6,7 @@
 #include "FComponentTransformHandler.h"
 #include "FSCSTransformHandler.h"
 #include "FSplinePointTransformHandler.h"
+#include "FControlRigShapeTransformHandler.h"
 #include "Blend4RealUtils.h"
 #include "Editor.h"
 #include "Engine/Selection.h"
@@ -94,6 +95,12 @@ TSharedPtr<IBlend4RealTransformHandler> FTransformHandlerFactory::CreateHandler(
 		if (TSharedPtr<IBlend4RealTransformHandler> SplineHandler = TryCreateSplinePointHandler())
 		{
 			return SplineHandler;
+		}
+
+		// Priority 0.5: Control Rig shape actors
+		if (FControlRigShapeTransformHandler::HasSelectedShapeActors())
+		{
+			return MakeShared<FControlRigShapeTransformHandler>();
 		}
 
 		// Priority 1: Components (more specific selection)

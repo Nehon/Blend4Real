@@ -46,7 +46,8 @@ public class Blend4Real : ModuleRules
 				"Kismet",
 				"SubobjectEditor",
 				"SubobjectDataInterface",
-				"ComponentVisualizers"
+				"ComponentVisualizers",
+			"ControlRig"
 			}
 		);
 
