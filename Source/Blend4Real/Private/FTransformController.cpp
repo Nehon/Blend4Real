@@ -339,6 +339,7 @@ void FTransformController::ResetTransform(const ETransformMode Mode) const
 	}
 
 	ResetHandler->BeginTransaction(FText::FromString(TEXT("Reset Transform")));
+	ResetHandler->CaptureInitialState();
 
 	switch (Mode)
 	{

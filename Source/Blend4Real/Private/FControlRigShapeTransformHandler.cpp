@@ -6,6 +6,7 @@
 #include "IControlRigObjectBinding.h"
 #include "Editor.h"
 #include "EngineUtils.h"
+#include "Rigs/RigHierarchyDefines.h"
 
 // ============================================================================
 // Static Helpers
@@ -119,15 +120,19 @@ void FControlRigShapeTransformHandler::SetControlWorldTransform(
 	const FTransform CompToWorld = GetComponentToWorld(ShapeActor);
 	const FTransform ComponentSpace = WorldTransform.GetRelativeTransform(CompToWorld);
 
+	// Use SetKey=Never during drag to match native gizmo behavior.
+	// HandleControlModified is triggered once on release via EndTransaction's broadcast.
 	FRigControlModifiedContext Context;
-	Context.SetKey = EControlRigSetKey::DoNotCare;
+	Context.SetKey = EControlRigSetKey::Never;
 
 	Rig->SetControlGlobalTransform(
 		ShapeActor->ControlName,
 		ComponentSpace,
 		/*bNotify=*/ true,
 		Context,
-		bSetupUndo);
+		bSetupUndo,
+		/*bPrintPythonCommands=*/ false,
+		/*bFixEulerFlips=*/ true);
 }
 
 // ============================================================================
@@ -233,6 +238,9 @@ void FControlRigShapeTransformHandler::CaptureInitialState()
 	TArray<AControlRigShapeActor*> ShapeActors;
 	GetSelectedShapeActors(ShapeActors);
 
+	// Group controls by rig for interaction scope creation
+	TMap<UControlRig*, TArray<FRigElementKey>> RigToKeys;
+
 	for (AControlRigShapeActor* ShapeActor : ShapeActors)
 	{
 		FControlState State;
@@ -241,6 +249,22 @@ void FControlRigShapeTransformHandler::CaptureInitialState()
 		State.ControlName = ShapeActor->ControlName;
 		State.WorldTransform = GetControlWorldTransform(ShapeActor);
 		InitialStates.Add(MoveTemp(State));
+
+		if (ShapeActor->ControlRig.IsValid())
+		{
+			RigToKeys.FindOrAdd(ShapeActor->ControlRig.Get()).Add(
+				FRigElementKey(ShapeActor->ControlName, ERigElementType::Control));
+		}
+	}
+
+	// Create interaction scopes so the rig hierarchy doesn't overwrite
+	// control transforms during manipulation. Also call Modify() for undo tracking
+	// (BeginTransaction is called before this, but InitialStates was empty then).
+	InteractionScopes.Empty();
+	for (auto& [Rig, Keys] : RigToKeys)
+	{
+		Rig->Modify();
+		InteractionScopes.Add(MakeShared<FControlRigInteractionScope>(Rig, MoveTemp(Keys)));
 	}
 }
 
@@ -390,32 +414,51 @@ int32 FControlRigShapeTransformHandler::BeginTransaction(const FText& Descriptio
 		return -1;
 	}
 
-	const int32 TransactionIndex = GEditor->BeginTransaction(TEXT(""), Description, nullptr);
-
-	// Mark all affected rigs as modified for undo
-	TSet<UControlRig*> ModifiedRigs;
-	for (const FControlState& State : InitialStates)
-	{
-		if (State.ControlRig.IsValid())
-		{
-			UControlRig* Rig = State.ControlRig.Get();
-			if (!ModifiedRigs.Contains(Rig))
-			{
-				Rig->Modify();
-				ModifiedRigs.Add(Rig);
-			}
-		}
-	}
-
-	return TransactionIndex;
+	// Note: Interaction scopes and Rig->Modify() are handled in CaptureInitialState(),
+	// which is called after this, because InitialStates is not yet populated here.
+	return GEditor->BeginTransaction(TEXT(""), Description, nullptr);
 }
 
 void FControlRigShapeTransformHandler::EndTransaction()
 {
+	// Notify the sequencer track editor about the final transform values.
+	// This mirrors FControlRigKeyframer::Apply() in the native gizmo's HandleEndTransform:
+	// broadcast ControlModified() with DoNotCare → HandleControlModified → AddControlKeys
+	// → writes current values into sequencer track channel defaults.
+	//
+	// Order matches native gizmo HandleEndTransform:
+	//   1. Broadcast ControlModified (Keyframer.Apply)
+	//   2. GEditor->EndTransaction()
+	//   3. Release interaction scopes
+	// This ensures the transaction captures the channel updates and scopes
+	// aren't released until after the sequencer has processed the changes.
+
+	for (const FControlState& State : InitialStates)
+	{
+		if (!State.ControlRig.IsValid())
+		{
+			continue;
+		}
+
+		UControlRig* Rig = State.ControlRig.Get();
+		if (FRigControlElement* ControlElement = Rig->FindControl(State.ControlName))
+		{
+			const FRigControlModifiedContext Context(EControlRigSetKey::DoNotCare);
+			Rig->ControlModified().Broadcast(Rig, ControlElement, Context);
+		}
+	}
+
+	// End the GEditor transaction BEFORE releasing scopes (matches native gizmo order).
+	// The Keyframer's channel updates are captured within the transaction, and
+	// SuppressAutoEvaluation prevents the sequencer from immediately overwriting them.
 	if (GEditor)
 	{
 		GEditor->EndTransaction();
 	}
+
+	// Release interaction scopes last. This may trigger rig re-evaluation,
+	// but the sequencer auto-evaluation is suppressed at this point.
+	InteractionScopes.Empty();
 }
 
 void FControlRigShapeTransformHandler::CancelTransaction(const int32 TransactionIndex)
@@ -424,4 +467,6 @@ void FControlRigShapeTransformHandler::CancelTransaction(const int32 Transaction
 	{
 		GEditor->CancelTransaction(TransactionIndex);
 	}
+
+	InteractionScopes.Empty();
 }

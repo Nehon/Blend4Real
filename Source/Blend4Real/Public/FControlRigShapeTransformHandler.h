@@ -7,6 +7,7 @@
 
 class AControlRigShapeActor;
 class UControlRig;
+class FControlRigInteractionScope;
 
 /**
  * Transform handler for Control Rig shape actors.
@@ -60,6 +61,9 @@ private:
 	};
 
 	TArray<FControlState> InitialStates;
+
+	/** Interaction scopes that prevent the rig from overwriting control transforms during manipulation */
+	TArray<TSharedPtr<FControlRigInteractionScope>> InteractionScopes;
 
 	// === Space Conversion Helpers ===
 
