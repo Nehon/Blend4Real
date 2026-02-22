@@ -7,6 +7,7 @@
 #include "FSCSTransformHandler.h"
 #include "FSplinePointTransformHandler.h"
 #include "FControlRigShapeTransformHandler.h"
+#include "FControlRigPreviewTransformHandler.h"
 #include "Blend4RealUtils.h"
 #include "Editor.h"
 #include "Engine/Selection.h"
@@ -148,6 +149,21 @@ TSharedPtr<IBlend4RealTransformHandler> FTransformHandlerFactory::CreateHandler(
 			}
 		}
 		return nullptr;
+	}
+
+	// Other editor viewports (e.g., Control Rig Editor): check for shape actors in the viewport's world
+	if (Blend4RealUtils::IsMouseOverViewport(MousePosition))
+	{
+		FEditorViewportClient* ViewportClient = Blend4RealUtils::GetFocusedViewportClient();
+		if (ViewportClient)
+		{
+			UWorld* ViewportWorld = ViewportClient->GetWorld();
+			if (ViewportWorld && ViewportWorld != Blend4RealUtils::GetEditorWorld()
+				&& FControlRigPreviewTransformHandler::HasSelectedShapeActors(ViewportWorld))
+			{
+				return MakeShared<FControlRigPreviewTransformHandler>(ViewportWorld);
+			}
+		}
 	}
 
 	// TODO: Add more viewport types here:
