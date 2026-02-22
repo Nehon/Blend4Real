@@ -721,6 +721,29 @@ void FTransformController::UpdateVisualization()
 		}
 	}
 
+	// Compute line thickness so it appears as ~2 pixels regardless of camera distance
+	constexpr float TargetPixels = 1.2f;
+	float LineThickness = 1.0f;
+	const FSceneView* Scene = GetActiveSceneView();
+	if (Scene)
+	{
+		const float ViewportHeight = Scene->UnscaledViewRect.Height();
+		if (ViewportHeight > 0.0f)
+		{
+			const float ProjScaleY = Scene->ViewMatrices.GetProjectionMatrix().M[1][1];
+			if (Scene->IsPerspectiveProjection())
+			{
+				const float Distance = FVector::Dist(Scene->ViewLocation, TransformPivot.GetLocation());
+				LineThickness = TargetPixels * 2.0f * Distance / (ViewportHeight * ProjScaleY);
+			}
+			else
+			{
+				LineThickness = TargetPixels * 2.0f / (ViewportHeight * ProjScaleY);
+			}
+		}
+	}
+	const float AxisLineThickness = LineThickness * 1.5f;
+
 	LineBatcher->ClearBatch(TRANSFORM_BATCH_ID);
 
 	// Draw mode-specific visualization
@@ -728,19 +751,19 @@ void FTransformController::UpdateVisualization()
 	{
 		LineBatcher->DrawLine(
 			TransformPivot.GetLocation(), HitLocation,
-			FLinearColor::White, SDPG_Foreground, 1.0f, 0.0f, TRANSFORM_BATCH_ID);
-
-		const FVector InitialDirection = (DragInitialProjectedPosition - TransformPivot.GetLocation()).GetSafeNormal();
-		const FVector EndPos = InitialDirection * 100.0 + TransformPivot.GetLocation();
-		LineBatcher->DrawLine(
-			TransformPivot.GetLocation(), EndPos,
-			FLinearColor(FColor::Cyan), SDPG_Foreground, 1.0f, 0.0f, TRANSFORM_BATCH_ID);
+			FLinearColor::White, SDPG_Foreground, LineThickness, 0.0f, TRANSFORM_BATCH_ID);
+		//
+		// const FVector InitialDirection = (DragInitialProjectedPosition - TransformPivot.GetLocation()).GetSafeNormal();
+		// const FVector EndPos = InitialDirection * 100.0 + TransformPivot.GetLocation();
+		// LineBatcher->DrawLine(
+		// 	TransformPivot.GetLocation(), EndPos,
+		// 	FLinearColor(FColor::Cyan), SDPG_Foreground, LineThickness, 0.0f, TRANSFORM_BATCH_ID);
 	}
 	else if (CurrentMode == ETransformMode::Scale)
 	{
 		LineBatcher->DrawLine(
 			TransformPivot.GetLocation(), HitLocation,
-			FLinearColor::White, SDPG_Foreground, 1.0f, 0.0f, TRANSFORM_BATCH_ID);
+			FLinearColor::White, SDPG_Foreground, LineThickness, 0.0f, TRANSFORM_BATCH_ID);
 	}
 
 	// Draw axis constraint line if an axis is selected
@@ -755,7 +778,7 @@ void FTransformController::UpdateVisualization()
 				DragInitialActorPosition - Axis,
 				DragInitialActorPosition + Axis,
 				FLinearColor(AxisColors[CurrentAxis]),
-				SDPG_Foreground, 2.0f, 0.0f, TRANSFORM_BATCH_ID);
+				SDPG_Foreground, AxisLineThickness, 0.0f, TRANSFORM_BATCH_ID);
 		}
 		else
 		{
@@ -814,12 +837,12 @@ void FTransformController::UpdateVisualization()
 				DragInitialActorPosition - Axis1,
 				DragInitialActorPosition + Axis1,
 				Color1,
-				SDPG_Foreground, 2.0f, 0.0f, TRANSFORM_BATCH_ID);
+				SDPG_Foreground, AxisLineThickness, 0.0f, TRANSFORM_BATCH_ID);
 			LineBatcher->DrawLine(
 				DragInitialActorPosition - Axis2,
 				DragInitialActorPosition + Axis2,
 				Color2,
-				SDPG_Foreground, 2.0f, 0.0f, TRANSFORM_BATCH_ID);
+				SDPG_Foreground, AxisLineThickness, 0.0f, TRANSFORM_BATCH_ID);
 		}
 	}
 
