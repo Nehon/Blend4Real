@@ -295,56 +295,51 @@ void FControlRigPreviewTransformHandler::ApplyTransformAroundPivot(
 
 		FTransform NewWorldTransform;
 
-		if (LocalScaleAxis.IsSet())
+		// Compute new world transform from explicit deltas rather than FTransform multiplication.
+		// FTransform::Inverse() does not handle negative scale correctly (used for mirrored controls),
+		// so we must avoid the A * A^-1 * B pattern and apply rotation/translation/scale deltas directly.
 		{
-			const FQuat ActorRotation = State.WorldTransform.GetRotation();
-
 			const FVector WorldOffset = State.WorldTransform.GetLocation() - PivotLocation;
-			FVector LocalOffset = ActorRotation.UnrotateVector(WorldOffset);
-
-			switch (LocalScaleAxis.GetValue())
-			{
-			case EAxis::X:
-				LocalOffset.X *= LocalScaleFactor;
-				break;
-			case EAxis::Y:
-				LocalOffset.Y *= LocalScaleFactor;
-				break;
-			case EAxis::Z:
-				LocalOffset.Z *= LocalScaleFactor;
-				break;
-			default:
-				break;
-			}
-
-			const FVector NewWorldOffset = ActorRotation.RotateVector(LocalOffset);
-			const FVector NewLocation = PivotLocation + DeltaTranslation + NewWorldOffset;
+			const FVector RotatedOffset = DeltaRotation.RotateVector(WorldOffset);
+			FVector NewLocation = PivotLocation + DeltaTranslation + RotatedOffset;
 
 			FVector NewScale = State.WorldTransform.GetScale3D();
-			switch (LocalScaleAxis.GetValue())
+
+			if (LocalScaleAxis.IsSet())
 			{
-			case EAxis::X:
-				NewScale.X *= LocalScaleFactor;
-				break;
-			case EAxis::Y:
-				NewScale.Y *= LocalScaleFactor;
-				break;
-			case EAxis::Z:
-				NewScale.Z *= LocalScaleFactor;
-				break;
-			default:
-				break;
+				const FQuat ActorRotation = State.WorldTransform.GetRotation();
+				FVector LocalOffset = ActorRotation.UnrotateVector(WorldOffset);
+
+				switch (LocalScaleAxis.GetValue())
+				{
+				case EAxis::X:
+					LocalOffset.X *= LocalScaleFactor;
+					NewScale.X *= LocalScaleFactor;
+					break;
+				case EAxis::Y:
+					LocalOffset.Y *= LocalScaleFactor;
+					NewScale.Y *= LocalScaleFactor;
+					break;
+				case EAxis::Z:
+					LocalOffset.Z *= LocalScaleFactor;
+					NewScale.Z *= LocalScaleFactor;
+					break;
+				default:
+					break;
+				}
+
+				const FVector NewWorldOffset = ActorRotation.RotateVector(LocalOffset);
+				NewLocation = PivotLocation + DeltaTranslation + NewWorldOffset;
+			}
+			else
+			{
+				NewScale = State.WorldTransform.GetScale3D() * DeltaScale;
 			}
 
 			NewWorldTransform = FTransform(
 				DeltaRotation * State.WorldTransform.GetRotation(),
 				NewLocation,
 				NewScale);
-		}
-		else
-		{
-			NewWorldTransform = State.WorldTransform * InitialPivot.Inverse();
-			NewWorldTransform = NewWorldTransform * NewPivotTransform;
 		}
 
 		if (!NewWorldTransform.ContainsNaN())
