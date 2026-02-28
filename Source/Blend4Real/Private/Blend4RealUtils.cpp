@@ -5,11 +5,42 @@
 #include "EditorModeManager.h"
 #include "EditorViewportClient.h"
 #include "PlatformInputsUtils.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Engine/Selection.h"
+#include "Rendering/SkeletalMeshRenderData.h"
+#include "SkeletalRenderPublic.h"
+#include "EngineUtils.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Slate/SceneViewport.h"
 #include "Widgets/SViewport.h"
 
+
+/** Segment-triangle intersection test. Adapted from MeshPaint's LegacySegmentTriangleIntersection. */
+static bool SegmentTriangleIntersection(const FVector& Start, const FVector& End,
+	const FVector& A, const FVector& B, const FVector& C,
+	FVector& OutIntersectPoint, FVector& OutTriangleNormal)
+{
+	const FVector BA = A - B;
+	const FVector CB = B - C;
+	const FVector TriNormal = BA ^ CB;
+	if (FMath::IsNearlyZero(TriNormal.SizeSquared()))
+	{
+		return false;
+	}
+
+	if (!FMath::SegmentPlaneIntersection(Start, End, FPlane(A, TriNormal), OutIntersectPoint))
+	{
+		return false;
+	}
+
+	const FVector BaryCentric = FMath::ComputeBaryCentric2D(OutIntersectPoint, A, B, C);
+	if (BaryCentric.X > 0.f && BaryCentric.Y > 0.f && BaryCentric.Z > 0.f)
+	{
+		OutTriangleNormal = TriNormal.GetSafeNormal();
+		return true;
+	}
+	return false;
+}
 
 namespace Blend4RealUtils
 {
@@ -160,14 +191,12 @@ namespace Blend4RealUtils
 		FEditorViewportClient* EClient = GetViewportClientAndScreenOrigin(MousePosition, ViewportScreenOrigin);
 		if (EClient == nullptr)
 		{
-			UE_LOG(LogTemp, Display, TEXT("Failed hit: no client"));
 			return FHitResult();
 		}
 
 		FViewport* Viewport = EClient->Viewport;
 		if (!Viewport)
 		{
-			UE_LOG(LogTemp, Display, TEXT("Failed hit: no viewport"));
 			return FHitResult();
 		}
 
@@ -177,7 +206,6 @@ namespace Blend4RealUtils
 		const FSceneView* Scene = EClient->CalcSceneView(&ViewFamily);
 		if (!Scene)
 		{
-			UE_LOG(LogTemp, Display, TEXT("Failed hit: no scene"));
 			return FHitResult();
 		}
 		// Convert screen position to viewport-local coordinates using the widget's screen origin
@@ -185,6 +213,124 @@ namespace Blend4RealUtils
 
 		Scene->DeprojectFVector2D(LocalMousePos, OutRayOrigin, OutRayDirection);
 
+		// Step 1: Check hit proxy to see what's RENDERED under the cursor.
+		// This catches skeletal meshes that have no collision geometry.
+		const int32 HitX = FMath::FloorToInt(LocalMousePos.X);
+		const int32 HitY = FMath::FloorToInt(LocalMousePos.Y);
+
+		HHitProxy* HitProxy = Viewport->GetHitProxy(HitX, HitY);
+
+		if (HitProxy && HitProxy->IsA(HActor::StaticGetType()))
+		{
+			const HActor* ActorProxy = static_cast<HActor*>(HitProxy);
+
+			// Step 2: If the rendered component is a skeletal mesh, use LineTraceComponent
+			// for precise surface pick (skeletal meshes often lack collision geometry)
+			if (ActorProxy->PrimComponent && ActorProxy->PrimComponent->IsA<USkeletalMeshComponent>())
+			{
+				AActor* HitActor = ActorProxy->Actor.Get();
+				USkeletalMeshComponent* SkelComp = HitActor
+					? HitActor->FindComponentByClass<USkeletalMeshComponent>()
+					: nullptr;
+
+				if (SkelComp)
+				{
+					const FVector TraceEnd = OutRayOrigin + OutRayDirection * 1000000.f;
+					FHitResult CompHitResult;
+					if (SkelComp->LineTraceComponent(
+							CompHitResult, OutRayOrigin, TraceEnd, FCollisionQueryParams::DefaultQueryParam))
+					{
+						CompHitResult.bBlockingHit = true;
+						return CompHitResult;
+					}
+
+					// LineTraceComponent failed (no collision geometry) — CPU skinned triangle intersection
+					USkeletalMesh* SkelMesh = SkelComp->GetSkeletalMeshAsset();
+					if (SkelMesh)
+					{
+						FSkeletalMeshRenderData* RenderData = SkelMesh->GetResourceForRendering();
+						if (RenderData && RenderData->LODRenderData.Num() > 0)
+						{
+							const FSkeletalMeshLODRenderData& LODData = RenderData->LODRenderData[0];
+
+							// Get current posed vertex positions (component space)
+							TArray<FMatrix44f> RefToLocals;
+							SkelComp->GetCurrentRefToLocalMatrices(RefToLocals, 0);
+							TArray<FVector3f> SkinnedPositions;
+							USkinnedMeshComponent::ComputeSkinnedPositions(
+								SkelComp, SkinnedPositions, RefToLocals,
+								LODData, *LODData.GetSkinWeightVertexBuffer());
+
+							// Get index buffer
+							TArray<uint32> Indices;
+							LODData.MultiSizeIndexContainer.GetIndexBuffer(Indices);
+
+							// Transform ray to component local space
+							const FTransform& CompTransform = SkelComp->GetComponentTransform();
+							const FTransform InvCompTransform = CompTransform.Inverse();
+							const FVector LocalStart = InvCompTransform.TransformPosition(OutRayOrigin);
+							const FVector LocalEnd = InvCompTransform.TransformPosition(TraceEnd);
+
+							// Ray-triangle intersection over all triangles
+							float MinDistance = FLT_MAX;
+							FVector ClosestIntersect = FVector::ZeroVector;
+							FVector ClosestNormal = FVector::UpVector;
+							const int32 NumTriangles = Indices.Num() / 3;
+
+							for (int32 Tri = 0; Tri < NumTriangles; ++Tri)
+							{
+								const FVector P0 = FVector(SkinnedPositions[Indices[Tri * 3 + 0]]);
+								const FVector P1 = FVector(SkinnedPositions[Indices[Tri * 3 + 1]]);
+								const FVector P2 = FVector(SkinnedPositions[Indices[Tri * 3 + 2]]);
+
+								FVector IntersectPoint, HitNormal;
+								if (SegmentTriangleIntersection(LocalStart, LocalEnd, P0, P1, P2,
+										IntersectPoint, HitNormal))
+								{
+									const float Dist = FVector::DistSquared(LocalStart, IntersectPoint);
+									if (Dist < MinDistance)
+									{
+										MinDistance = Dist;
+										ClosestIntersect = IntersectPoint;
+										ClosestNormal = HitNormal;
+									}
+								}
+							}
+
+							if (MinDistance != FLT_MAX)
+							{
+								FHitResult SkinHit;
+								SkinHit.bBlockingHit = true;
+								SkinHit.ImpactPoint = CompTransform.TransformPosition(ClosestIntersect);
+								SkinHit.Location = SkinHit.ImpactPoint;
+								SkinHit.ImpactNormal = CompTransform.TransformVectorNoScale(ClosestNormal).GetSafeNormal();
+								SkinHit.Distance = FVector::Dist(OutRayOrigin, SkinHit.ImpactPoint);
+								return SkinHit;
+							}
+						}
+					}
+
+					// Final fallback: bounding box intersection
+					const FBox Box = SkelComp->Bounds.GetBox();
+					FVector HitLocation, HitNormal;
+					float HitTime;
+					if (FMath::LineExtentBoxIntersection(
+							Box, OutRayOrigin, TraceEnd, FVector::ZeroVector,
+							HitLocation, HitNormal, HitTime))
+					{
+						FHitResult BoundsHit;
+						BoundsHit.bBlockingHit = true;
+						BoundsHit.Location = HitLocation;
+						BoundsHit.ImpactPoint = HitLocation;
+						BoundsHit.ImpactNormal = HitNormal;
+						BoundsHit.Distance = FVector::Dist(OutRayOrigin, HitLocation);
+						return BoundsHit;
+					}
+				}
+			}
+		}
+
+		// Step 3: Fall back to regular ECC_Visibility collision trace
 		FCollisionQueryParams Params;
 		Params.bTraceComplex = true;
 

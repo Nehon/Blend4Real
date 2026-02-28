@@ -66,7 +66,6 @@ void FNavigationController::BeginOrbit(const FVector2D& MousePosition)
 		OrbitPivot = Blend4RealUtils::ComputeSelectionPivot().GetLocation();
 	}
 
-	//DrawDebugPoint(ViewportClient->GetWorld(),OrbitPivot,20,FColor::Red,false,10,10);
 }
 
 void FNavigationController::EndOrbit()
@@ -148,7 +147,6 @@ void FNavigationController::BeginPan(const FVector2D& MousePosition)
 	PanPlane = FPlane(Normal, Dist);
 
 	// uncomment to debug the plane position
-	//DrawDebugSolidPlane(ViewportClient->GetWorld(), PanPlane, PanPivot, 500, FColor::Yellow, false, 5, 0);
 
 	// save original POV informations
 	PanInvViewProjectionMatrix = Blend4RealUtils::GetActiveSceneView(ViewportClient)->ViewMatrices.
@@ -354,7 +352,6 @@ void FNavigationController::UpdatePan(const FVector2D& MousePosition)
 	ViewportClient->SetViewLocation(StartPanCameraLocation - (PlaneHit - PanPivot));
 
 
-	//DrawDebugLine(ViewportClient->GetWorld(), PanPivot, PlaneHit, FColor::Red, false, 0.1, 1);
 	// Invalidate the viewport to trigger a redraw
 	ViewportClient->Invalidate();
 }
