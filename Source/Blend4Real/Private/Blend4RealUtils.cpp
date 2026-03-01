@@ -220,112 +220,147 @@ namespace Blend4RealUtils
 
 		HHitProxy* HitProxy = Viewport->GetHitProxy(HitX, HitY);
 
+		// Step 2: If we have an HActor proxy, try LineTraceComponent on the proxy's component
 		if (HitProxy && HitProxy->IsA(HActor::StaticGetType()))
 		{
 			const HActor* ActorProxy = static_cast<HActor*>(HitProxy);
-
-			// Step 2: If the rendered component is a skeletal mesh, use LineTraceComponent
-			// for precise surface pick (skeletal meshes often lack collision geometry)
-			if (ActorProxy->PrimComponent && ActorProxy->PrimComponent->IsA<USkeletalMeshComponent>())
+			AActor* HitActor = ActorProxy->Actor.Get();
+			const FVector TraceEnd = OutRayOrigin + OutRayDirection * 1000000.f;
+			if (HitActor && ActorProxy->PrimComponent)
 			{
-				AActor* HitActor = ActorProxy->Actor.Get();
-				USkeletalMeshComponent* SkelComp = HitActor
-					? HitActor->FindComponentByClass<USkeletalMeshComponent>()
-					: nullptr;
-
-				if (SkelComp)
+				UPrimitiveComponent* ProxyComp = Cast<UPrimitiveComponent>(
+					HitActor->GetComponentByClass(ActorProxy->PrimComponent->GetClass()));
+				if (ProxyComp)
 				{
-					const FVector TraceEnd = OutRayOrigin + OutRayDirection * 1000000.f;
 					FHitResult CompHitResult;
-					if (SkelComp->LineTraceComponent(
+					if (ProxyComp->LineTraceComponent(
 							CompHitResult, OutRayOrigin, TraceEnd, FCollisionQueryParams::DefaultQueryParam))
 					{
 						CompHitResult.bBlockingHit = true;
 						return CompHitResult;
 					}
+				}
+			}
+		}
 
-					// LineTraceComponent failed (no collision geometry) — CPU skinned triangle intersection
-					USkeletalMesh* SkelMesh = SkelComp->GetSkeletalMeshAsset();
-					if (SkelMesh)
+		// Step 3: Try CPU skinned triangle intersection on any skeletal mesh in the scene.
+		// Handles: skeletal meshes without collision (DebugSkelMeshComponent), overlay
+		// components (DynamicMeshComponent in editing tools), and non-HActor proxies
+		// (HBoneHitProxy over skeleton visualizations).
+		if (HitProxy)
+		{
+			const FVector TraceEnd = OutRayOrigin + OutRayDirection * 1000000.f;
+
+			// Find a skeletal mesh component — check the hit actor first, then search the world
+			USkeletalMeshComponent* SkelComp = nullptr;
+			if (HitProxy->IsA(HActor::StaticGetType()))
+			{
+				AActor* HitActor = static_cast<HActor*>(HitProxy)->Actor.Get();
+				if (HitActor)
+				{
+					SkelComp = HitActor->FindComponentByClass<USkeletalMeshComponent>();
+				}
+			}
+			if (!SkelComp && EClient->GetWorld())
+			{
+				for (TActorIterator<AActor> It(EClient->GetWorld()); It; ++It)
+				{
+					SkelComp = It->FindComponentByClass<USkeletalMeshComponent>();
+					if (SkelComp)
 					{
-						FSkeletalMeshRenderData* RenderData = SkelMesh->GetResourceForRendering();
-						if (RenderData && RenderData->LODRenderData.Num() > 0)
+						break;
+					}
+				}
+			}
+
+			if (SkelComp)
+			{
+				// Try LineTraceComponent first (works if collision is set up)
+				FHitResult CompHitResult;
+				if (SkelComp->LineTraceComponent(
+						CompHitResult, OutRayOrigin, TraceEnd, FCollisionQueryParams::DefaultQueryParam))
+				{
+					CompHitResult.bBlockingHit = true;
+					return CompHitResult;
+				}
+
+				// CPU skinned triangle intersection
+				USkeletalMesh* SkelMesh = SkelComp->GetSkeletalMeshAsset();
+				if (SkelMesh)
+				{
+					FSkeletalMeshRenderData* RenderData = SkelMesh->GetResourceForRendering();
+					if (RenderData && RenderData->LODRenderData.Num() > 0)
+					{
+						const FSkeletalMeshLODRenderData& LODData = RenderData->LODRenderData[0];
+
+						TArray<FMatrix44f> RefToLocals;
+						SkelComp->GetCurrentRefToLocalMatrices(RefToLocals, 0);
+						TArray<FVector3f> SkinnedPositions;
+						USkinnedMeshComponent::ComputeSkinnedPositions(
+							SkelComp, SkinnedPositions, RefToLocals,
+							LODData, *LODData.GetSkinWeightVertexBuffer());
+
+						TArray<uint32> Indices;
+						LODData.MultiSizeIndexContainer.GetIndexBuffer(Indices);
+
+						const FTransform& CompTransform = SkelComp->GetComponentTransform();
+						const FTransform InvCompTransform = CompTransform.Inverse();
+						const FVector LocalStart = InvCompTransform.TransformPosition(OutRayOrigin);
+						const FVector LocalEnd = InvCompTransform.TransformPosition(TraceEnd);
+
+						float MinDistance = FLT_MAX;
+						FVector ClosestIntersect = FVector::ZeroVector;
+						FVector ClosestNormal = FVector::UpVector;
+						const int32 NumTriangles = Indices.Num() / 3;
+
+						for (int32 Tri = 0; Tri < NumTriangles; ++Tri)
 						{
-							const FSkeletalMeshLODRenderData& LODData = RenderData->LODRenderData[0];
+							const FVector P0 = FVector(SkinnedPositions[Indices[Tri * 3 + 0]]);
+							const FVector P1 = FVector(SkinnedPositions[Indices[Tri * 3 + 1]]);
+							const FVector P2 = FVector(SkinnedPositions[Indices[Tri * 3 + 2]]);
 
-							// Get current posed vertex positions (component space)
-							TArray<FMatrix44f> RefToLocals;
-							SkelComp->GetCurrentRefToLocalMatrices(RefToLocals, 0);
-							TArray<FVector3f> SkinnedPositions;
-							USkinnedMeshComponent::ComputeSkinnedPositions(
-								SkelComp, SkinnedPositions, RefToLocals,
-								LODData, *LODData.GetSkinWeightVertexBuffer());
-
-							// Get index buffer
-							TArray<uint32> Indices;
-							LODData.MultiSizeIndexContainer.GetIndexBuffer(Indices);
-
-							// Transform ray to component local space
-							const FTransform& CompTransform = SkelComp->GetComponentTransform();
-							const FTransform InvCompTransform = CompTransform.Inverse();
-							const FVector LocalStart = InvCompTransform.TransformPosition(OutRayOrigin);
-							const FVector LocalEnd = InvCompTransform.TransformPosition(TraceEnd);
-
-							// Ray-triangle intersection over all triangles
-							float MinDistance = FLT_MAX;
-							FVector ClosestIntersect = FVector::ZeroVector;
-							FVector ClosestNormal = FVector::UpVector;
-							const int32 NumTriangles = Indices.Num() / 3;
-
-							for (int32 Tri = 0; Tri < NumTriangles; ++Tri)
+							FVector IntersectPoint, HitNormal;
+							if (SegmentTriangleIntersection(LocalStart, LocalEnd, P0, P1, P2,
+									IntersectPoint, HitNormal))
 							{
-								const FVector P0 = FVector(SkinnedPositions[Indices[Tri * 3 + 0]]);
-								const FVector P1 = FVector(SkinnedPositions[Indices[Tri * 3 + 1]]);
-								const FVector P2 = FVector(SkinnedPositions[Indices[Tri * 3 + 2]]);
-
-								FVector IntersectPoint, HitNormal;
-								if (SegmentTriangleIntersection(LocalStart, LocalEnd, P0, P1, P2,
-										IntersectPoint, HitNormal))
+								const float Dist = FVector::DistSquared(LocalStart, IntersectPoint);
+								if (Dist < MinDistance)
 								{
-									const float Dist = FVector::DistSquared(LocalStart, IntersectPoint);
-									if (Dist < MinDistance)
-									{
-										MinDistance = Dist;
-										ClosestIntersect = IntersectPoint;
-										ClosestNormal = HitNormal;
-									}
+									MinDistance = Dist;
+									ClosestIntersect = IntersectPoint;
+									ClosestNormal = HitNormal;
 								}
 							}
+						}
 
-							if (MinDistance != FLT_MAX)
-							{
-								FHitResult SkinHit;
-								SkinHit.bBlockingHit = true;
-								SkinHit.ImpactPoint = CompTransform.TransformPosition(ClosestIntersect);
-								SkinHit.Location = SkinHit.ImpactPoint;
-								SkinHit.ImpactNormal = CompTransform.TransformVectorNoScale(ClosestNormal).GetSafeNormal();
-								SkinHit.Distance = FVector::Dist(OutRayOrigin, SkinHit.ImpactPoint);
-								return SkinHit;
-							}
+						if (MinDistance != FLT_MAX)
+						{
+							FHitResult SkinHit;
+							SkinHit.bBlockingHit = true;
+							SkinHit.ImpactPoint = CompTransform.TransformPosition(ClosestIntersect);
+							SkinHit.Location = SkinHit.ImpactPoint;
+							SkinHit.ImpactNormal = CompTransform.TransformVectorNoScale(ClosestNormal).GetSafeNormal();
+							SkinHit.Distance = FVector::Dist(OutRayOrigin, SkinHit.ImpactPoint);
+							return SkinHit;
 						}
 					}
+				}
 
-					// Final fallback: bounding box intersection
-					const FBox Box = SkelComp->Bounds.GetBox();
-					FVector HitLocation, HitNormal;
-					float HitTime;
-					if (FMath::LineExtentBoxIntersection(
-							Box, OutRayOrigin, TraceEnd, FVector::ZeroVector,
-							HitLocation, HitNormal, HitTime))
-					{
-						FHitResult BoundsHit;
-						BoundsHit.bBlockingHit = true;
-						BoundsHit.Location = HitLocation;
-						BoundsHit.ImpactPoint = HitLocation;
-						BoundsHit.ImpactNormal = HitNormal;
-						BoundsHit.Distance = FVector::Dist(OutRayOrigin, HitLocation);
-						return BoundsHit;
-					}
+				// Final fallback: bounding box intersection
+				const FBox Box = SkelComp->Bounds.GetBox();
+				FVector HitLocation, HitNormal;
+				float HitTime;
+				if (FMath::LineExtentBoxIntersection(
+						Box, OutRayOrigin, TraceEnd, FVector::ZeroVector,
+						HitLocation, HitNormal, HitTime))
+				{
+					FHitResult BoundsHit;
+					BoundsHit.bBlockingHit = true;
+					BoundsHit.Location = HitLocation;
+					BoundsHit.ImpactPoint = HitLocation;
+					BoundsHit.ImpactNormal = HitNormal;
+					BoundsHit.Distance = FVector::Dist(OutRayOrigin, HitLocation);
+					return BoundsHit;
 				}
 			}
 		}
