@@ -8,6 +8,8 @@
 #include "FSplinePointTransformHandler.h"
 #include "FControlRigShapeTransformHandler.h"
 #include "FControlRigPreviewTransformHandler.h"
+#include "FBoneTransformHandler.h"
+#include "FEditSkeletonTransformHandler.h"
 #include "Blend4RealUtils.h"
 #include "Editor.h"
 #include "Engine/Selection.h"
@@ -17,6 +19,13 @@
 #include "Features/IModularFeatures.h"
 #include "SplineDetailsProvider.h"
 #include "Components/SplineComponent.h"
+#include "IPersonaPreviewScene.h"
+#include "Animation/DebugSkelMeshComponent.h"
+#include "EngineUtils.h"
+#include "EditorModeManager.h"
+#include "InteractiveToolManager.h"
+#include "SkeletalMesh/SkeletonEditingTool.h"
+#include "Subsystems/AssetEditorSubsystem.h"
 
 namespace
 {
@@ -39,6 +48,42 @@ namespace
 				{
 					return MakeShared<FSplinePointTransformHandler>(SplineComp, Provider->GetSelectedKeys());
 				}
+			}
+		}
+
+		return nullptr;
+	}
+
+	/**
+	 * Try to get an IPersonaPreviewScene from a viewport client's preview scene.
+	 * Returns nullptr if the preview scene is not a Persona preview scene.
+	 */
+	IPersonaPreviewScene* GetPersonaPreviewScene(FEditorViewportClient* ViewportClient)
+	{
+		if (!ViewportClient)
+		{
+			return nullptr;
+		}
+
+		FPreviewScene* RawPreviewScene = ViewportClient->GetPreviewScene();
+		if (!RawPreviewScene)
+		{
+			return nullptr;
+		}
+
+		// Verify this is a Persona preview scene by checking for UDebugSkelMeshComponent
+		// Only Persona-based editors (Animation, Skeleton, IK Rig) use these
+		UWorld* PreviewWorld = RawPreviewScene->GetWorld();
+		if (!PreviewWorld)
+		{
+			return nullptr;
+		}
+
+		for (TActorIterator<AActor> It(PreviewWorld); It; ++It)
+		{
+			if (It->FindComponentByClass<UDebugSkelMeshComponent>())
+			{
+				return static_cast<IPersonaPreviewScene*>(RawPreviewScene);
 			}
 		}
 
@@ -76,6 +121,39 @@ namespace
 		}
 
 		return nullptr;
+	}
+
+	/**
+	 * Get the active USkeletonEditingTool when "Edit Skeleton" mode is active.
+	 * Returns nullptr if the mode is not active or no skeleton editing tool is running.
+	 */
+	USkeletonEditingTool* GetActiveSkeletonEditingTool(FEditorViewportClient* ViewportClient)
+	{
+		if (!ViewportClient)
+		{
+			return nullptr;
+		}
+
+		FEditorModeTools* ModeTools = ViewportClient->GetModeTools();
+		if (!ModeTools || !ModeTools->IsModeActive(FEditorModeID("SkeletalMeshModelingToolsEditorMode")))
+		{
+			return nullptr;
+		}
+
+		UEdMode* Mode = ModeTools->GetActiveScriptableMode(FEditorModeID("SkeletalMeshModelingToolsEditorMode"));
+		if (!Mode)
+		{
+			return nullptr;
+		}
+
+		UInteractiveToolManager* ToolManager = Mode->GetToolManager();
+		if (!ToolManager)
+		{
+			return nullptr;
+		}
+
+		UInteractiveTool* ActiveTool = ToolManager->GetActiveTool(EToolSide::Left);
+		return Cast<USkeletonEditingTool>(ActiveTool);
 	}
 }
 
@@ -151,23 +229,43 @@ TSharedPtr<IBlend4RealTransformHandler> FTransformHandlerFactory::CreateHandler(
 		return nullptr;
 	}
 
-	// Other editor viewports (e.g., Control Rig Editor): check for shape actors in the viewport's world
+	// Other editor viewports (e.g., Control Rig Editor, Animation Editor, IK Rig Editor)
 	if (Blend4RealUtils::IsMouseOverViewport(MousePosition))
 	{
 		FEditorViewportClient* ViewportClient = Blend4RealUtils::GetFocusedViewportClient();
 		if (ViewportClient)
 		{
 			UWorld* ViewportWorld = ViewportClient->GetWorld();
-			if (ViewportWorld && ViewportWorld != Blend4RealUtils::GetEditorWorld()
-				&& FControlRigPreviewTransformHandler::HasSelectedShapeActors(ViewportWorld))
+			if (ViewportWorld && ViewportWorld != Blend4RealUtils::GetEditorWorld())
 			{
-				return MakeShared<FControlRigPreviewTransformHandler>(ViewportWorld);
+				// Priority 0: Control Rig shape actors in preview scenes
+				if (FControlRigPreviewTransformHandler::HasSelectedShapeActors(ViewportWorld))
+				{
+					return MakeShared<FControlRigPreviewTransformHandler>(ViewportWorld);
+				}
+
+				// Priority 0: Edit Skeleton mode (completely different transform pipeline —
+				// directly edits RawRefBonePose, bypasses animation system entirely)
+				USkeletonEditingTool* SkeletonTool = GetActiveSkeletonEditingTool(ViewportClient);
+				if (SkeletonTool && SkeletonTool->GetSelection().Num() > 0)
+				{
+					return MakeShared<FEditSkeletonTransformHandler>(SkeletonTool, ViewportWorld);
+				}
+
+				// Priority 1: Bone selection in Persona-based editors
+				IPersonaPreviewScene* PersonaScene = GetPersonaPreviewScene(ViewportClient);
+				if (PersonaScene)
+				{
+					if (PersonaScene->GetSelectedBoneIndex() != INDEX_NONE)
+					{
+						return MakeShared<FBoneTransformHandler>(PersonaScene);
+					}
+				}
 			}
 		}
 	}
 
 	// TODO: Add more viewport types here:
-	// - Animation Editor (bones)
 	// - Static Mesh Editor (sockets)
 	// - Skeleton Editor (sockets)
 

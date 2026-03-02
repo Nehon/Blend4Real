@@ -1,6 +1,7 @@
 // Copyright 2025-Present - Nehon (Rémy Bouquet). All Rights Reserved.
 
 using UnrealBuildTool;
+using System.IO;
 
 public class Blend4Real : ModuleRules
 {
@@ -47,7 +48,14 @@ public class Blend4Real : ModuleRules
 				"SubobjectEditor",
 				"SubobjectDataInterface",
 				"ComponentVisualizers",
-			"ControlRig"
+			"ControlRig",
+			"Persona",
+			"AnimGraph",
+			"SkeletalMeshEditor",
+			"SkeletalMeshUtilitiesCommon",
+			"MeshModelingToolsEditorOnly",
+			"SkeletalMeshModifiers",
+			"InteractiveToolsFramework"
 			}
 		);
 

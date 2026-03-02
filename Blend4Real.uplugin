@@ -28,6 +28,16 @@
       ]
     }
   ],
+  "Plugins": [
+    {
+      "Name": "ControlRig",
+      "Enabled": true
+    },
+    {
+      "Name": "MeshModelingToolset",
+      "Enabled": true
+    }
+  ],
   "SupportedTargetPlatforms": [
     "Win64",
     "Mac"

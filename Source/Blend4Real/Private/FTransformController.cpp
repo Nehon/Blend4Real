@@ -263,9 +263,22 @@ void FTransformController::UpdateFromMouseMove(const FVector2D& MousePosition, b
 
 		if (Project)
 		{
-			const FHitResult Result = ProjectToSurface(GetEditorWorld(),
-			                                           RayOrigin, RayDirection,
-			                                           IgnoreSelectionQueryParams);
+			// In preview scenes (Edit Skeleton, Animation Editor, etc.), the editor world
+			// has no relevant geometry and DebugSkelMeshComponent has no collision.
+			// Use ScenePickAtPosition which does CPU skinned triangle intersection.
+			FHitResult Result;
+			UWorld* HandlerWorld = TransformHandler->GetVisualizationWorld();
+			if (HandlerWorld && HandlerWorld != GetEditorWorld())
+			{
+				FVector PickRayOrigin, PickRayDirection;
+				Result = ScenePickAtPosition(MousePosition, PickRayOrigin, PickRayDirection);
+			}
+			else
+			{
+				Result = ProjectToSurface(GetEditorWorld(),
+				                          RayOrigin, RayDirection,
+				                          IgnoreSelectionQueryParams);
+			}
 			if (Result.IsValidBlockingHit())
 			{
 				const bool AlignToNormal = ViewportSettings->SnapToSurface.bSnapRotation;
