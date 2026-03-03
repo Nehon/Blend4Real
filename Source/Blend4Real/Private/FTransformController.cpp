@@ -29,7 +29,7 @@ void FTransformController::BeginTransform(const ETransformMode Mode)
 
 	// Get appropriate handler for current viewport context
 	TransformHandler = FTransformHandlerFactory::CreateHandler();
-	if (!TransformHandler || !TransformHandler->HasSelection())
+	if (!TransformHandler || !TransformHandler->HasSelection() || !TransformHandler->SupportsMode(Mode))
 	{
 		TransformHandler.Reset();
 		return;

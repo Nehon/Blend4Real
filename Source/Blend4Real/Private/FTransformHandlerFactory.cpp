@@ -10,6 +10,7 @@
 #include "FControlRigPreviewTransformHandler.h"
 #include "FBoneTransformHandler.h"
 #include "FEditSkeletonTransformHandler.h"
+#include "FRetargetBoneTransformHandler.h"
 #include "Blend4RealUtils.h"
 #include "Editor.h"
 #include "Engine/Selection.h"
@@ -26,6 +27,10 @@
 #include "InteractiveToolManager.h"
 #include "SkeletalMesh/SkeletonEditingTool.h"
 #include "Subsystems/AssetEditorSubsystem.h"
+#include "RetargetEditor/IKRetargetEditPoseMode.h"
+#include "RetargetEditor/IKRetargetEditor.h"
+#include "RetargetEditor/IKRetargeterController.h"
+#include "Retargeter/IKRetargeter.h"
 
 namespace
 {
@@ -121,6 +126,59 @@ namespace
 		}
 
 		return nullptr;
+	}
+
+	/**
+	 * Try to get the FIKRetargetEditorController when "Edit Retarget Pose" mode is active.
+	 * Returns nullptr if the mode is not active or the controller is not accessible.
+	 */
+	TSharedPtr<FIKRetargetEditorController> GetRetargetEditorController(FEditorViewportClient* ViewportClient)
+	{
+		if (!ViewportClient)
+		{
+			return nullptr;
+		}
+
+		FEditorModeTools* ModeTools = ViewportClient->GetModeTools();
+		if (!ModeTools || !ModeTools->IsModeActive(FEditorModeID("IKRetargetAssetEditMode")))
+		{
+			return nullptr;
+		}
+
+		// Find the UIKRetargeter asset being edited
+		UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
+		if (!AssetEditorSubsystem)
+		{
+			return nullptr;
+		}
+
+		UIKRetargeter* RetargeterAsset = nullptr;
+		TArray<UObject*> EditedAssets = AssetEditorSubsystem->GetAllEditedAssets();
+		for (UObject* Asset : EditedAssets)
+		{
+			if (UIKRetargeter* Retargeter = Cast<UIKRetargeter>(Asset))
+			{
+				RetargeterAsset = Retargeter;
+				break;
+			}
+		}
+
+		if (!RetargeterAsset)
+		{
+			return nullptr;
+		}
+
+		// Get the editor instance for this asset
+		IAssetEditorInstance* EditorInstance = AssetEditorSubsystem->FindEditorForAsset(RetargeterAsset, false);
+		if (!EditorInstance)
+		{
+			return nullptr;
+		}
+
+		// Cast through the known inheritance chain:
+		// IAssetEditorInstance → FAssetEditorToolkit → FPersonaAssetEditorToolkit → FIKRetargetEditor
+		FIKRetargetEditor* RetargetEditor = static_cast<FIKRetargetEditor*>(EditorInstance);
+		return RetargetEditor->GetController();
 	}
 
 	/**
@@ -252,7 +310,16 @@ TSharedPtr<IBlend4RealTransformHandler> FTransformHandlerFactory::CreateHandler(
 					return MakeShared<FEditSkeletonTransformHandler>(SkeletonTool, ViewportWorld);
 				}
 
-				// Priority 1: Bone selection in Persona-based editors
+				// Priority 1: IK Retargeter "Edit Retarget Pose" mode
+				// Must check before generic Persona bone selection because the retargeter
+				// manages its own bone selection (not synced to IPersonaPreviewScene)
+				TSharedPtr<FIKRetargetEditorController> RetargetController = GetRetargetEditorController(ViewportClient);
+				if (RetargetController && !RetargetController->GetSelectedBones().IsEmpty())
+				{
+					return MakeShared<FRetargetBoneTransformHandler>(RetargetController);
+				}
+
+				// Priority 2: Bone selection in Persona-based editors
 				IPersonaPreviewScene* PersonaScene = GetPersonaPreviewScene(ViewportClient);
 				if (PersonaScene)
 				{

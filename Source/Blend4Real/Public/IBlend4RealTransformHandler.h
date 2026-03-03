@@ -22,6 +22,12 @@ class IBlend4RealTransformHandler
 public:
 	virtual ~IBlend4RealTransformHandler() = default;
 
+	// === Mode Support ===
+
+	/** Returns true if this handler supports the given transform mode.
+	 *  Default: all modes supported. Override to restrict (e.g., rotation-only). */
+	virtual bool SupportsMode(ETransformMode Mode) const { return true; }
+
 	// === Selection Queries ===
 
 	/** Returns true if there are items selected that can be transformed */

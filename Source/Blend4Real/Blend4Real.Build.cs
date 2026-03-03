@@ -55,7 +55,9 @@ public class Blend4Real : ModuleRules
 			"SkeletalMeshUtilitiesCommon",
 			"MeshModelingToolsEditorOnly",
 			"SkeletalMeshModifiers",
-			"InteractiveToolsFramework"
+			"InteractiveToolsFramework",
+			"IKRig",
+			"IKRigEditor"
 			}
 		);
 
