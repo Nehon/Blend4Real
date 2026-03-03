@@ -17,8 +17,9 @@
 #include "Framework/Application/SlateApplication.h"
 #include "BlueprintEditorModule.h"
 #include "BlueprintEditor.h"
-#include "Features/IModularFeatures.h"
-#include "SplineDetailsProvider.h"
+#include "Editor/UnrealEdEngine.h"
+#include "UnrealEdGlobals.h"
+#include "SplineComponentVisualizer.h"
 #include "Components/SplineComponent.h"
 #include "IPersonaPreviewScene.h"
 #include "Animation/DebugSkelMeshComponent.h"
@@ -40,19 +41,18 @@ namespace
 	 */
 	TSharedPtr<IBlend4RealTransformHandler> TryCreateSplinePointHandler()
 	{
-		// Get all spline details providers (visualizers that can provide selection state)
-		TArray<ISplineDetailsProvider*> Providers = IModularFeatures::Get()
-			.GetModularFeatureImplementations<ISplineDetailsProvider>(ISplineDetailsProvider::GetModularFeatureName());
+		// In UE 5.6, get the spline visualizer directly via the component visualizer registry
+		TSharedPtr<FComponentVisualizer> Visualizer = GUnrealEd
+			? GUnrealEd->FindComponentVisualizer(USplineComponent::StaticClass()->GetFName())
+			: nullptr;
 
-		for (ISplineDetailsProvider* Provider : Providers)
+		FSplineComponentVisualizer* SplineVisualizer = static_cast<FSplineComponentVisualizer*>(Visualizer.Get());
+		if (SplineVisualizer && SplineVisualizer->GetSelectedKeys().Num() > 0)
 		{
-			if (Provider && Provider->GetSelectedKeys().Num() > 0)
+			USplineComponent* SplineComp = SplineVisualizer->GetEditedSplineComponent();
+			if (SplineComp)
 			{
-				USplineComponent* SplineComp = Provider->GetEditedSplineComponent();
-				if (SplineComp)
-				{
-					return MakeShared<FSplinePointTransformHandler>(SplineComp, Provider->GetSelectedKeys());
-				}
+				return MakeShared<FSplinePointTransformHandler>(SplineComp, SplineVisualizer->GetSelectedKeys());
 			}
 		}
 
