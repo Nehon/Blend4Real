@@ -125,14 +125,14 @@ void FNavigationController::BeginPan(const FVector2D& MousePosition)
 		PanPivot = Result.Location;
 	}
 
-	// Save the start camera position.
+	// Save the start camera position and look-at location.
 	// In orbit camera mode, GetViewLocation() returns orbit parameters, not actual camera position.
 	// We need to compute the actual camera position from the orbit matrix.
+	StartPanLookAtLocation = ViewportClient->GetLookAtLocation();
 	if (bIsOrbitCameraMode)
 	{
 		FViewportCameraTransform& ViewTransform = ViewportClient->GetViewTransform();
 		StartPanCameraLocation = ViewTransform.ComputeOrbitMatrix().Inverse().GetOrigin();
-		StartPanLookAtLocation = ViewportClient->GetLookAtLocation();
 	}
 	else
 	{
@@ -186,12 +186,12 @@ void FNavigationController::ReinitializePanAfterWrap(const FVector2D& NewMousePo
 		return;
 	}
 
-	// Update start camera location to current position
+	// Update start camera location and look-at to current position
+	StartPanLookAtLocation = ViewportClient->GetLookAtLocation();
 	if (bIsOrbitCameraMode)
 	{
 		FViewportCameraTransform& ViewTransform = ViewportClient->GetViewTransform();
 		StartPanCameraLocation = ViewTransform.ComputeOrbitMatrix().Inverse().GetOrigin();
-		StartPanLookAtLocation = ViewportClient->GetLookAtLocation();
 	}
 	else
 	{
@@ -249,7 +249,7 @@ void FNavigationController::UpdateOrbitCameraMode(FEditorViewportClient* Viewpor
 
 	ViewportClient->SetViewRotation(CurrentRotation);
 
-	// Recompute location from orbit matrix (this is the key step for orbit camera mode)
+	// Recompute ViewLocation from the orbit matrix to stay consistent with orbit camera state.
 	FViewportCameraTransform& ViewTransform = ViewportClient->GetViewTransform();
 	ViewportClient->SetViewLocation(ViewTransform.ComputeOrbitMatrix().Inverse().GetOrigin());
 
@@ -293,6 +293,14 @@ void FNavigationController::UpdateRegularCameraMode(FEditorViewportClient* Viewp
 
 	ViewportClient->SetViewLocation(NewLocation);
 	ViewportClient->SetViewRotation(NewRotation);
+	// Keep LookAt along the view direction at orbit distance.
+	// This ensures PerspectiveCameraMoved's orbit-mode double-toggle is lossless
+	// (the static mesh editor converts regular→orbit→regular every camera move to save state).
+	// Setting LookAt to OrbitPivot directly would corrupt the camera position during this round-trip
+	// because the orbit matrix requires LookAt to be along the view direction.
+	const FVector Direction = NewRotation.Vector();
+	const float DistToOrbitPivot = FVector::Dist(NewLocation, OrbitPivot);
+	ViewportClient->SetLookAtLocation(NewLocation + Direction * DistToOrbitPivot);
 
 	ViewportClient->Invalidate();
 }
@@ -336,6 +344,8 @@ void FNavigationController::UpdatePan(const FVector2D& MousePosition)
 		const FVector PanDelta = (-RightVector * Delta.X + UpVector * Delta.Y) * PanSpeed;
 
 		ViewportClient->SetViewLocation(CameraLocation + PanDelta);
+		// Keep LookAt in sync so zoom speed scaling and PerspectiveCameraMoved work correctly
+		ViewportClient->SetLookAtLocation(ViewportClient->GetLookAtLocation() + PanDelta);
 
 		// Invalidate the viewport to trigger a redraw
 		ViewportClient->Invalidate();
@@ -348,9 +358,11 @@ void FNavigationController::UpdatePan(const FVector2D& MousePosition)
 		MousePosition, PanUnscaledViewRect, PanInvViewProjectionMatrix, RayOrigin,
 		RayDirection);
 	const FVector PlaneHit = FMath::RayPlaneIntersection(RayOrigin, RayDirection, PanPlane);
+	const FVector PanOffset = PlaneHit - PanPivot;
 	// offset the original camera pos with the computed vector offset
-	ViewportClient->SetViewLocation(StartPanCameraLocation - (PlaneHit - PanPivot));
-
+	ViewportClient->SetViewLocation(StartPanCameraLocation - PanOffset);
+	// Keep LookAt in sync so zoom speed scaling and PerspectiveCameraMoved work correctly
+	ViewportClient->SetLookAtLocation(StartPanLookAtLocation - PanOffset);
 
 	// Invalidate the viewport to trigger a redraw
 	ViewportClient->Invalidate();
@@ -402,12 +414,9 @@ void FNavigationController::UpdatePanOrbitCameraMode(FEditorViewportClient* View
 	// Calculate the world-space offset from start
 	const FVector Offset = PlaneHit - PanPivot;
 
-	// Apply the same offset to the LookAt point (moves camera and lookat together)
+	// Move LookAt by the pan offset, then recompute ViewLocation from orbit matrix
 	ViewportClient->SetLookAtLocation(StartPanLookAtLocation - Offset);
-
-	// Recompute camera location from orbit matrix after moving LookAt
-	FViewportCameraTransform& ViewTransform = ViewportClient->GetViewTransform();
-	ViewportClient->SetViewLocation(ViewTransform.ComputeOrbitMatrix().Inverse().GetOrigin());
+	ViewportClient->SetViewLocation(StartPanCameraLocation - Offset);
 
 	ViewportClient->Invalidate();
 }
