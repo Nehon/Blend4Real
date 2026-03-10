@@ -19,7 +19,7 @@
  * We iterate world actors and check that flag.
  */
 
-static UWorld* GetEditorWorld()
+static UWorld* GetControlRigEditorWorld()
 {
 	if (GEditor)
 	{
@@ -30,7 +30,7 @@ static UWorld* GetEditorWorld()
 
 bool FControlRigShapeTransformHandler::HasSelectedShapeActors()
 {
-	UWorld* World = GetEditorWorld();
+	const UWorld* World = GetControlRigEditorWorld();
 	if (!World)
 	{
 		return false;
@@ -52,7 +52,7 @@ void FControlRigShapeTransformHandler::GetSelectedShapeActors(TArray<AControlRig
 {
 	OutShapeActors.Empty();
 
-	const UWorld* World = GetEditorWorld();
+	const UWorld* World = GetControlRigEditorWorld();
 	if (!World)
 	{
 		return;
@@ -79,11 +79,11 @@ FTransform FControlRigShapeTransformHandler::GetComponentToWorld(const AControlR
 		return FTransform::Identity;
 	}
 
-	UControlRig* Rig = ShapeActor->ControlRig.Get();
-	TSharedPtr<IControlRigObjectBinding> Binding = Rig->GetObjectBinding();
+	const UControlRig* Rig = ShapeActor->ControlRig.Get();
+	const TSharedPtr<IControlRigObjectBinding> Binding = Rig->GetObjectBinding();
 	if (Binding.IsValid())
 	{
-		if (USceneComponent* BoundComponent = Cast<USceneComponent>(Binding->GetBoundObject()))
+		if (const USceneComponent* BoundComponent = Cast<USceneComponent>(Binding->GetBoundObject()))
 		{
 			return BoundComponent->GetComponentToWorld();
 		}

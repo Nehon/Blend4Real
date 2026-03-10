@@ -31,11 +31,18 @@
   "Plugins": [
     {
       "Name": "ControlRig",
-      "Enabled": true
+      "Enabled": true,
+      "Optional": true
     },
     {
       "Name": "MeshModelingToolset",
-      "Enabled": true
+      "Enabled": true,
+      "Optional": true
+    },
+    {
+      "Name": "IKRig",
+      "Enabled": true,
+      "Optional": true
     }
   ],
   "SupportedTargetPlatforms": [
