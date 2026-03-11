@@ -58,6 +58,7 @@ namespace Blend4RealUtils
 		return TypeString.Contains(TEXT("EditorViewport"))
 			|| TypeString.Contains(TEXT("PreviewViewport"))
 			|| TypeString.Contains(TEXT("SystemViewport"))
+			|| TypeString.Contains(TEXT("PaletteViewport"))
 			|| TypeString == TEXT("SLevelViewport")
 			|| TypeString == TEXT("SSCSEditorViewport");
 	}
