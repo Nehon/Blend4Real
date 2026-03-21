@@ -405,7 +405,12 @@ bool FBlend4RealInputProcessor::HandleMouseMoveEvent(FSlateApplication& SlateApp
 			!MouseEvent.IsShiftDown() &&
 			!MouseEvent.IsCommandDown();
 
-		TransformController->UpdateFromMouseMove(CurrentPosition, bInvertSnap);
+		const bool bPrecisionMode = MouseEvent.IsShiftDown() &&
+			!MouseEvent.IsControlDown() &&
+			!MouseEvent.IsAltDown() &&
+			!MouseEvent.IsCommandDown();
+
+		TransformController->UpdateFromMouseMove(CurrentPosition, bInvertSnap, bPrecisionMode);
 		return true;
 	}
 
