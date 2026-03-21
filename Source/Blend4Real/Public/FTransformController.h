@@ -52,8 +52,9 @@ public:
 	 * Update the transform based on current mouse position
 	 * @param MousePosition - Current mouse screen position
 	 * @param bInvertSnap - If true, invert the snap state
+	 * @param bPrecisionMode - If true, scale transform deltas by 0.1 for fine control (Shift key)
 	 */
-	void UpdateFromMouseMove(const FVector2D& MousePosition, bool bInvertSnap);
+	void UpdateFromMouseMove(const FVector2D& MousePosition, bool bInvertSnap, bool bPrecisionMode = false);
 
 	/** Reset transform of selected actors for the given mode */
 	void ResetTransform(ETransformMode Mode) const;
@@ -97,6 +98,10 @@ private:
 	float InitialScaleDistance = 0.f;
 	FLinearColor OriginalSelectionColor = FLinearColor::Black;
 	FCollisionQueryParams IgnoreSelectionQueryParams;
+
+	// Precision mode state (Shift key)
+	bool bWasPrecisionMode = false;
+	FVector PrecisionAnchorHit = FVector::ZeroVector;
 
 	/** Current transform handler - determines how transforms are applied to selection */
 	TSharedPtr<IBlend4RealTransformHandler> TransformHandler;

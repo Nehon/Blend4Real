@@ -47,6 +47,8 @@ void FTransformController::BeginTransform(const ETransformMode Mode)
 	CurrentAxis = ETransformAxis::None;
 	bIsNumericInput = false;
 	NumericBuffer.Empty();
+	bWasPrecisionMode = false;
+	PrecisionAnchorHit = FVector::ZeroVector;
 
 	// Get the mode description text
 	FString ModeText;
@@ -212,7 +214,7 @@ void FTransformController::ApplyNumericTransform()
 	UpdateVisualization();
 }
 
-void FTransformController::UpdateFromMouseMove(const FVector2D& MousePosition, bool bInvertSnap)
+void FTransformController::UpdateFromMouseMove(const FVector2D& MousePosition, bool bInvertSnap, bool bPrecisionMode)
 {
 	if (!bIsTransforming || bIsNumericInput)
 	{
@@ -222,11 +224,59 @@ void FTransformController::UpdateFromMouseMove(const FVector2D& MousePosition, b
 	const FPlane HitPlane = ComputePlane(TransformPivot.GetLocation());
 	HitLocation = GetPlaneHit(HitPlane.GetNormal(), HitPlane.W, RayOrigin, RayDirection);
 
+	// Precision mode transitions: anchor on enter, adjust origins on exit for continuity
+	if (bPrecisionMode && !bWasPrecisionMode)
+	{
+		// Entering precision: anchor at current hit position
+		PrecisionAnchorHit = HitLocation;
+	}
+	else if (!bPrecisionMode && bWasPrecisionMode)
+	{
+		// Leaving precision: adjust origins so the transform value stays continuous
+		const FVector EffectiveHit = PrecisionAnchorHit + (HitLocation - PrecisionAnchorHit) * 0.1f;
+
+		if (CurrentMode == ETransformMode::Rotation)
+		{
+			// Rotation uses angles between normalized directions from pivot.
+			// Rotate DragInitialProjectedPosition around pivot to compensate for the
+			// angular difference between EffectiveHit and raw HitLocation.
+			const FVector Pivot = TransformPivot.GetLocation();
+			const FVector OldDir = (Pivot - EffectiveHit).GetSafeNormal();
+			const FVector NewDir = (Pivot - HitLocation).GetSafeNormal();
+			const FQuat Compensation = FQuat::FindBetweenNormals(OldDir, NewDir);
+			DragInitialProjectedPosition = Pivot + Compensation.RotateVector(DragInitialProjectedPosition - Pivot);
+		}
+		else if (CurrentMode == ETransformMode::Scale)
+		{
+			// Scale uses distance ratios - adjust InitialScaleDistance to preserve the scale value
+			if (InitialScaleDistance > 0.001f)
+			{
+				const float EffectiveDistance = (TransformPivot.GetLocation() - EffectiveHit).Length();
+				if (EffectiveDistance > 0.001f)
+				{
+					const float RawDistance = (TransformPivot.GetLocation() - HitLocation).Length();
+					InitialScaleDistance = InitialScaleDistance * RawDistance / EffectiveDistance;
+				}
+			}
+		}
+		else
+		{
+			// Translation uses linear deltas - shift the drag origin
+			DragInitialProjectedPosition += (HitLocation - PrecisionAnchorHit) * 0.9f;
+		}
+	}
+	bWasPrecisionMode = bPrecisionMode;
+
+	// In precision mode, the effective hit only moves 10% from the anchor point
+	const FVector EffectiveHit = bPrecisionMode
+		? PrecisionAnchorHit + (HitLocation - PrecisionAnchorHit) * 0.1f
+		: HitLocation;
+
 	const FVector AxisVector = GetAxisVector(CurrentAxis);
 
 	if (CurrentMode == ETransformMode::Rotation)
 	{
-		const FVector Dir = (TransformPivot.GetLocation() - HitLocation).GetSafeNormal();
+		const FVector Dir = (TransformPivot.GetLocation() - EffectiveHit).GetSafeNormal();
 		const FVector OriginalDir = (TransformPivot.GetLocation() - DragInitialProjectedPosition).GetSafeNormal();
 
 		const float X = FVector::DotProduct(Dir, OriginalDir);
@@ -244,7 +294,7 @@ void FTransformController::UpdateFromMouseMove(const FVector2D& MousePosition, b
 		const ETransformAxis::Type Axis = static_cast<ETransformAxis::Type>(CurrentAxis >= ETransformAxis::LocalX
 			                                                                    ? CurrentAxis - 3
 			                                                                    : CurrentAxis);
-		const float NewDistance = (TransformPivot.GetLocation() - HitLocation).Length();
+		const float NewDistance = (TransformPivot.GetLocation() - EffectiveHit).Length();
 		if (InitialScaleDistance < 0.001)
 		{
 			return;
@@ -318,10 +368,10 @@ void FTransformController::UpdateFromMouseMove(const FVector2D& MousePosition, b
 		}
 		else
 		{
-			FVector Dir = (DragInitialProjectedPosition - HitLocation);
-			const float TransformValue = Dir.Length();
-			Dir /= TransformValue;
-			ApplyTransform(Dir, -TransformValue, bInvertSnap);
+			FVector Dir = (DragInitialProjectedPosition - EffectiveHit);
+			const float Length = Dir.Length();
+			Dir /= Length;
+			ApplyTransform(Dir, -Length, bInvertSnap);
 		}
 	}
 	else
@@ -335,7 +385,7 @@ void FTransformController::UpdateFromMouseMove(const FVector2D& MousePosition, b
 		const FVector ViewDir = Scene->GetViewDirection().GetSafeNormal();
 		const bool IsAlignedWithCamera = abs(FVector::DotProduct(ViewDir, AxisVector)) > 0.96;
 		const FVector Axis = IsAlignedWithCamera ? Scene->GetViewUp() : AxisVector;
-		const float TransformValue = Axis.Dot(DragInitialProjectedPosition - HitLocation);
+		const float TransformValue = Axis.Dot(DragInitialProjectedPosition - EffectiveHit);
 		ApplyTransform(AxisVector, -TransformValue, bInvertSnap);
 	}
 
