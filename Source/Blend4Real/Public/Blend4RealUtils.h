@@ -43,6 +43,7 @@ enum class ETransformMode
 	None,
 	Translation, // 'G' key
 	Rotation, // 'R' key
+	Trackball, // 'R R' double-tap: free trackball rotation
 	Scale // 'S' key
 };
 

@@ -60,6 +60,9 @@ void FTransformController::BeginTransform(const ETransformMode Mode)
 	case ETransformMode::Rotation:
 		ModeText = TEXT("Rotate");
 		break;
+	case ETransformMode::Trackball:
+		ModeText = TEXT("Trackball Rotate");
+		break;
 	case ETransformMode::Scale:
 		ModeText = TEXT("Scale");
 		break;
@@ -170,6 +173,53 @@ void FTransformController::SetAxis(ETransformAxis::Type Axis)
 	UpdateVisualization();
 }
 
+void FTransformController::SwitchToTrackball()
+{
+	CurrentMode = ETransformMode::Trackball;
+	CurrentAxis = ETransformAxis::None;
+	AccumulatedTrackballRotation = FQuat::Identity;
+	LastTrackballMousePos = FSlateApplication::Get().GetCursorPos();
+
+	TransformHandler->RestoreInitialState();
+
+	UpdateVisualization();
+}
+
+void FTransformController::SwitchToRotation()
+{
+	CurrentMode = ETransformMode::Rotation;
+	CurrentAxis = ETransformAxis::None;
+
+	// Recompute plane hit for camera-perpendicular plane
+	const FPlane HitPlane = ComputePlane(TransformPivot.GetLocation());
+	DragInitialProjectedPosition = GetPlaneHit(HitPlane.GetNormal(), HitPlane.W, RayOrigin, RayDirection);
+
+	// Reset to initial state so standard rotation starts fresh from here
+	TransformHandler->RestoreInitialState();
+
+	UpdateVisualization();
+}
+
+void FTransformController::ApplyTrackballRotation(const FQuat& DeltaRotation)
+{
+	if (!bIsTransforming || !TransformHandler)
+	{
+		return;
+	}
+
+	FTransform NewPivotTransform = TransformPivot;
+	NewPivotTransform.SetRotation(DeltaRotation * TransformPivot.GetRotation());
+
+	float Angle;
+	FVector Axis;
+	DeltaRotation.ToAxisAndAngle(Axis, Angle);
+	const FVector2D CursorPos = FSlateApplication::Get().GetCursorPos();
+	ShowTransformInfo(FString::Printf(TEXT("%.1f\u00B0"), FMath::RadiansToDegrees(Angle)), CursorPos);
+
+	TransformHandler->ApplyTransformAroundPivot(TransformPivot, NewPivotTransform);
+	GEditor->RedrawLevelEditingViewports();
+}
+
 void FTransformController::HandleNumericInput(const FString& Digit)
 {
 	if (CurrentAxis == ETransformAxis::None)
@@ -218,6 +268,41 @@ void FTransformController::UpdateFromMouseMove(const FVector2D& MousePosition, b
 {
 	if (!bIsTransforming || bIsNumericInput)
 	{
+		return;
+	}
+
+	// Trackball uses screen-space mouse deltas, not plane raycasting
+	if (CurrentMode == ETransformMode::Trackball)
+	{
+		const FVector2D MouseDelta = MousePosition - LastTrackballMousePos;
+		LastTrackballMousePos = MousePosition;
+
+		if (MouseDelta.IsNearlyZero())
+		{
+			return;
+		}
+
+		const FSceneView* Scene = GetActiveSceneView();
+		if (!Scene)
+		{
+			return;
+		}
+
+		const FVector CamRight = Scene->GetViewRight().GetSafeNormal();
+		const FVector CamUp = Scene->GetViewUp().GetSafeNormal();
+
+		constexpr float BaseSensitivity = 0.5f;
+		const float Sensitivity = bPrecisionMode ? BaseSensitivity * 0.1f : BaseSensitivity;
+
+		// Single-axis rotation per frame: axis is perpendicular to mouse delta in camera space.
+		// This avoids path-dependent drift from composing separate yaw/pitch quaternions.
+		const FVector RotationAxis = (CamUp * -MouseDelta.X + CamRight * -MouseDelta.Y).GetSafeNormal();
+		const float RotationAngle = FMath::DegreesToRadians(MouseDelta.Size() * Sensitivity);
+		const FQuat FrameDelta(RotationAxis, RotationAngle);
+
+		AccumulatedTrackballRotation = FrameDelta * AccumulatedTrackballRotation;
+		ApplyTrackballRotation(AccumulatedTrackballRotation);
+		UpdateVisualization();
 		return;
 	}
 
@@ -810,7 +895,42 @@ void FTransformController::UpdateVisualization()
 	LineBatcher->ClearBatch(TRANSFORM_BATCH_ID);
 
 	// Draw mode-specific visualization
-	if (CurrentMode == ETransformMode::Rotation)
+	if (CurrentMode == ETransformMode::Trackball)
+	{
+		// Draw a white circle around the pivot facing the camera
+		if (Scene)
+		{
+			const FVector CamRight = Scene->GetViewRight().GetSafeNormal();
+			const FVector CamUp = Scene->GetViewUp().GetSafeNormal();
+			const FVector Center = TransformPivot.GetLocation();
+
+			// Compute world-space radius for ~80 screen pixels
+			constexpr float TargetScreenRadius = 80.0f;
+			float CircleRadius;
+			const float VpHeight = Scene->UnscaledViewRect.Height();
+			const float ProjScale = Scene->ViewMatrices.GetProjectionMatrix().M[1][1];
+			if (Scene->IsPerspectiveProjection())
+			{
+				const float Dist = FVector::Dist(Scene->ViewLocation, Center);
+				CircleRadius = TargetScreenRadius * 2.0f * Dist / (VpHeight * ProjScale);
+			}
+			else
+			{
+				CircleRadius = TargetScreenRadius * 2.0f / (VpHeight * ProjScale);
+			}
+
+			constexpr int32 NumSegments = 64;
+			for (int32 i = 0; i < NumSegments; i++)
+			{
+				const float A0 = 2.0f * UE_PI * i / NumSegments;
+				const float A1 = 2.0f * UE_PI * (i + 1) / NumSegments;
+				const FVector P0 = Center + CamRight * FMath::Cos(A0) * CircleRadius + CamUp * FMath::Sin(A0) * CircleRadius;
+				const FVector P1 = Center + CamRight * FMath::Cos(A1) * CircleRadius + CamUp * FMath::Sin(A1) * CircleRadius;
+				LineBatcher->DrawLine(P0, P1, FLinearColor::White, SDPG_Foreground, LineThickness, 0.0f, TRANSFORM_BATCH_ID);
+			}
+		}
+	}
+	else if (CurrentMode == ETransformMode::Rotation)
 	{
 		LineBatcher->DrawLine(
 			TransformPivot.GetLocation(), HitLocation,
