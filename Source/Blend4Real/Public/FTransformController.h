@@ -59,6 +59,10 @@ public:
 	/** Reset transform of selected actors for the given mode */
 	void ResetTransform(ETransformMode Mode) const;
 
+	/** Switch from Rotation to Trackball mode (or vice versa) while transforming */
+	void SwitchToTrackball();
+	void SwitchToRotation();
+
 private:
 	/** Get axis direction vector for the given axis */
 	FVector GetAxisVector(ETransformAxis::Type Axis) const;
@@ -78,6 +82,9 @@ private:
 	/** Apply the internal transform state to actors */
 	void ApplyTransform(const FVector& Direction, float Value, bool InvertSnapState = false);
 
+	/** Apply trackball rotation delta to selection */
+	void ApplyTrackballRotation(const FQuat& DeltaRotation);
+
 	// Visualization
 	void ShowTransformInfo(const FString& Text, const FVector2D& ScreenPosition);
 	void HideTransformInfo();
@@ -96,6 +103,8 @@ private:
 	FVector HitLocation = FVector::ZeroVector;
 	FVector TransformViewDir = FVector::ZeroVector;
 	float InitialScaleDistance = 0.f;
+	FQuat AccumulatedTrackballRotation = FQuat::Identity;
+	FVector2D LastTrackballMousePos = FVector2D::ZeroVector;
 	FLinearColor OriginalSelectionColor = FLinearColor::Black;
 	FCollisionQueryParams IgnoreSelectionQueryParams;
 

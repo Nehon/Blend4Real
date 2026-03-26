@@ -256,18 +256,43 @@ bool FBlend4RealInputProcessor::HandleKeyDownEvent(FSlateApplication& SlateApp, 
 	// Handle transform mode inputs
 	if (TransformController->IsTransforming())
 	{
-		// Axis keys
+		const UBlend4RealSettings* Settings = UBlend4RealSettings::Get();
+
+		// Toggle between Rotation and Trackball on repeated R press
+		if (UBlend4RealSettings::MatchesChord(Settings->RotationKey, InKeyEvent))
+		{
+			if (TransformController->GetCurrentMode() == ETransformMode::Rotation)
+			{
+				TransformController->SwitchToTrackball();
+				return true;
+			}
+			if (TransformController->GetCurrentMode() == ETransformMode::Trackball)
+			{
+				TransformController->SwitchToRotation();
+				return true;
+			}
+		}
+
+		// Axis keys — in Trackball mode, exit to standard Rotation with axis constraint
 		ETransformAxis::Type Axis;
 		if (Blend4RealUtils::IsAxisKey(InKeyEvent, ModMask, Axis) && (ModMask == 0 || ModMask == EModifierKey::Shift))
 		{
+			if (TransformController->GetCurrentMode() == ETransformMode::Trackball)
+			{
+				TransformController->SwitchToRotation();
+			}
 			TransformController->SetAxis(Axis);
 			return true;
 		}
 
-		// Numeric input
+		// Numeric input — in Trackball mode, exit to standard Rotation with numeric input
 		FString Digit;
 		if (Blend4RealUtils::IsNumericKey(InKeyEvent, Digit) && (ModMask == 0 || ModMask == EModifierKey::Shift))
 		{
+			if (TransformController->GetCurrentMode() == ETransformMode::Trackball)
+			{
+				TransformController->SwitchToRotation();
+			}
 			TransformController->HandleNumericInput(Digit);
 			return true;
 		}

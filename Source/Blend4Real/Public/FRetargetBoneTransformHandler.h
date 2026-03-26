@@ -30,7 +30,7 @@ public:
 
 	// === IBlend4RealTransformHandler ===
 
-	virtual bool SupportsMode(ETransformMode Mode) const override { return Mode == ETransformMode::Rotation; }
+	virtual bool SupportsMode(ETransformMode Mode) const override { return Mode == ETransformMode::Rotation || Mode == ETransformMode::Trackball; }
 	virtual bool HasSelection() const override;
 	virtual int32 GetSelectionCount() const override;
 
