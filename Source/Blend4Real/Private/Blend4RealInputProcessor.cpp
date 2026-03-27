@@ -242,7 +242,7 @@ void FBlend4RealInputProcessor::Tick(const float DeltaTime, FSlateApplication& S
 
 bool FBlend4RealInputProcessor::HandleKeyDownEvent(FSlateApplication& SlateApp, const FKeyEvent& InKeyEvent)
 {
-	// Instant Blender Controls: when disabled, intercept transform keys to activate transient mode
+	// Instant Blender Controls: when disabled, intercept transform keys to activate transient mode.
 	if (!bIsEnabled)
 	{
 		const UBlend4RealSettings* Settings = UBlend4RealSettings::Get();
@@ -438,7 +438,6 @@ bool FBlend4RealInputProcessor::HandleMouseMoveEvent(FSlateApplication& SlateApp
 	const FVector2D CurrentPosition = MouseEvent.GetScreenSpacePosition();
 	const FVector2D Delta = CurrentPosition - LastMousePosition;
 	LastMousePosition = CurrentPosition;
-
 
 	// For ongoing operations (navigation/transform), continue processing even if mouse moves outside viewport
 	// This ensures smooth camera movement and transforms when mouse drags outside viewport
