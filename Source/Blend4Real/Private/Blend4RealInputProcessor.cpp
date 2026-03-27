@@ -120,9 +120,12 @@ void FBlend4RealInputProcessor::ToggleEnabled(const bool bInvalidateRender)
 		{
 			ViewportClient->Invalidate();
 		}
-		else if (GEditor && GEditor->GetActiveViewport())
+		else if (GEditor)
 		{
-			GEditor->GetActiveViewport()->Invalidate();
+			if (FViewport* ActiveViewport = GEditor->GetActiveViewport())
+			{
+				ActiveViewport->Invalidate();
+			}
 		}
 	}
 

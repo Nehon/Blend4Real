@@ -122,10 +122,23 @@ void FBlend4RealModule::OnBeginPIE(bool bIsSimulating)
 	{
 		bWasEnabledBeforePIE = false;
 	}
+
+	// Unregister the input processor entirely during PIE to prevent transient mode from
+	// activating and accessing invalid viewport state
+	if (BlenderInputHandler.IsValid())
+	{
+		BlenderInputHandler->UnregisterInputProcessor();
+	}
 }
 
 void FBlend4RealModule::OnEndPIE(bool bIsSimulating)
 {
+	// Re-register the input processor so it can intercept keys again (including for transient mode)
+	if (BlenderInputHandler.IsValid())
+	{
+		BlenderInputHandler->RegisterInputProcessor();
+	}
+
 	// Re-enable if it was enabled before PIE started
 	if (bWasEnabledBeforePIE && BlenderInputHandler.IsValid() && !BlenderInputHandler->IsEnabled())
 	{

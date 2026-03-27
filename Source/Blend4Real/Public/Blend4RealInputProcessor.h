@@ -45,10 +45,10 @@ public:
 
 	void ToggleEnabled(const bool bInvalidateRender = true);
 	bool IsEnabled() const { return bIsEnabled; }
-
-private:
 	void RegisterInputProcessor();
 	void UnregisterInputProcessor();
+
+private:
 	void Init(TSharedPtr<ILevelEditor> InLevelEditor);
 
 	/** End transient mode if active: clears the flag and disables Blend4Real. */
