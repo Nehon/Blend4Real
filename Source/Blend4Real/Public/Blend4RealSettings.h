@@ -33,6 +33,12 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Navigation", meta = (DisplayName = "Orbit Mode", ToolTip = "Controls how the camera orbits when using middle mouse button"))
 	EBlend4RealOrbitMode OrbitMode = EBlend4RealOrbitMode::OrbitAroundMouseProjection;
 
+	// Instant Blender Controls: press G/R/S to start a transform without enabling Blend4Real first.
+	// Blend4Real activates automatically for the duration of the transform, then returns to standard Unreal controls.
+	UPROPERTY(Config, EditAnywhere, Category = "General", meta = (DisplayName = "Instant Blender Controls",
+		ToolTip = "When enabled, pressing a transform key (G/R/S) over a viewport will temporarily activate Blender controls for that transform. Once confirmed or cancelled, controls return to standard Unreal behavior. This works independently of the toolbar toggle."))
+	bool bInstantBlenderControls = false;
+
 	// Helper methods to get orbit flags
 	bool ShouldOrbitAroundSelection() const { return OrbitMode == EBlend4RealOrbitMode::OrbitAroundSelection; }
 	bool ShouldOrbitAroundMouseHit() const { return OrbitMode == EBlend4RealOrbitMode::OrbitAroundMouseProjection; }
