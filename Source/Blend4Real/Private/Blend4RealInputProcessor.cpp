@@ -255,21 +255,22 @@ bool FBlend4RealInputProcessor::HandleKeyDownEvent(FSlateApplication& SlateApp, 
 		}
 
 		const FVector2D MousePosition = SlateApp.GetCursorPos();
-		if (!Blend4RealUtils::IsMouseOverViewport(MousePosition))
+		const FName ViewportFilter = Settings->bInstantControlsLevelOnly ? FName("SLevelViewport") : NAME_None;
+		if (!Blend4RealUtils::IsMouseOverViewport(MousePosition, ViewportFilter))
 		{
 			return false;
 		}
 
 		ETransformMode TransientTransformMode;
-		if (UBlend4RealSettings::MatchesChord(Settings->TranslationKey, InKeyEvent))
+		if (UBlend4RealSettings::MatchesChord(Settings->InstantTranslationKey, InKeyEvent))
 		{
 			TransientTransformMode = ETransformMode::Translation;
 		}
-		else if (UBlend4RealSettings::MatchesChord(Settings->RotationKey, InKeyEvent))
+		else if (UBlend4RealSettings::MatchesChord(Settings->InstantRotationKey, InKeyEvent))
 		{
 			TransientTransformMode = ETransformMode::Rotation;
 		}
-		else if (UBlend4RealSettings::MatchesChord(Settings->ScaleKey, InKeyEvent))
+		else if (UBlend4RealSettings::MatchesChord(Settings->InstantScaleKey, InKeyEvent))
 		{
 			TransientTransformMode = ETransformMode::Scale;
 		}

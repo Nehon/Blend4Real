@@ -35,9 +35,29 @@ public:
 
 	// Instant Blender Controls: press G/R/S to start a transform without enabling Blend4Real first.
 	// Blend4Real activates automatically for the duration of the transform, then returns to standard Unreal controls.
-	UPROPERTY(Config, EditAnywhere, Category = "General", meta = (DisplayName = "Instant Blender Controls",
+	UPROPERTY(Config, EditAnywhere, Category = "General", meta = (DisplayName = "Instant Controls",
 		ToolTip = "When enabled, pressing a transform key (G/R/S) over a viewport will temporarily activate Blender controls for that transform. Once confirmed or cancelled, controls return to standard Unreal behavior. This works independently of the toolbar toggle."))
 	bool bInstantBlenderControls = false;
+
+	UPROPERTY(Config, EditAnywhere, Category = "General", meta = (DisplayName = "Instant Controls Level Viewport Only",
+		EditCondition = "bInstantBlenderControls",
+		ToolTip = "When enabled, Instant Blender Controls only activates in the Level Editor viewport, not in Blueprint or other viewports."))
+	bool bInstantControlsLevelOnly = true;
+
+	UPROPERTY(Config, EditAnywhere, Category = "General", meta = (DisplayName = "Instant Grab Key",
+		EditCondition = "bInstantBlenderControls",
+		ToolTip = "Key to start a grab/translate transform in Instant Blender Controls mode."))
+	FInputChord InstantTranslationKey = FInputChord(EKeys::G);
+
+	UPROPERTY(Config, EditAnywhere, Category = "General", meta = (DisplayName = "Instant Rotation Key",
+		EditCondition = "bInstantBlenderControls",
+		ToolTip = "Key to start a rotation transform in Instant Blender Controls mode."))
+	FInputChord InstantRotationKey = FInputChord(EKeys::R);
+
+	UPROPERTY(Config, EditAnywhere, Category = "General", meta = (DisplayName = "Instant Scale Key",
+		EditCondition = "bInstantBlenderControls",
+		ToolTip = "Key to start a scale transform in Instant Blender Controls mode."))
+	FInputChord InstantScaleKey = FInputChord(EKeys::S, EModifierKey::Shift);
 
 	// Helper methods to get orbit flags
 	bool ShouldOrbitAroundSelection() const { return OrbitMode == EBlend4RealOrbitMode::OrbitAroundSelection; }
