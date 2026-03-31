@@ -21,10 +21,10 @@
       "LoadingPhase": "Default",
       "PlatformAllowList": [
         "Win64",
-        "Mac"
+        "Mac",
+        "Linux"
       ],
       "PlatformDenyList": [
-        "Linux"
       ]
     }
   ],
@@ -47,6 +47,7 @@
   ],
   "SupportedTargetPlatforms": [
     "Win64",
-    "Mac"
+    "Mac",
+    "Linux"
   ]
 }
