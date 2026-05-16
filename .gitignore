@@ -77,3 +77,4 @@ DerivedDataCache/*
 
 # Mac shitty metadata
 .DS_Store
+Source/Blend4Real/.idea/

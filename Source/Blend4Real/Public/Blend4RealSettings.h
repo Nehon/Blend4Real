@@ -33,6 +33,37 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Navigation", meta = (DisplayName = "Orbit Mode", ToolTip = "Controls how the camera orbits when using middle mouse button"))
 	EBlend4RealOrbitMode OrbitMode = EBlend4RealOrbitMode::OrbitAroundMouseProjection;
 
+	// Instant Blender Controls: press G/R/S to start a transform without enabling Blend4Real first.
+	// Blend4Real activates automatically for the duration of the transform, then returns to standard Unreal controls.
+	UPROPERTY(Config, EditAnywhere, Category = "General", meta = (DisplayName = "Instant Controls",
+		ToolTip = "When enabled, pressing a transform key (G/R/S) over a viewport will temporarily activate Blender controls for that transform. Once confirmed or cancelled, controls return to standard Unreal behavior. This works independently of the toolbar toggle."))
+	bool bInstantBlenderControls = false;
+
+	UPROPERTY(Config, EditAnywhere, Category = "General", meta = (DisplayName = "Instant Controls Level Viewport Only",
+		EditCondition = "bInstantBlenderControls",
+		ToolTip = "When enabled, Instant Blender Controls only activates in the Level Editor viewport, not in Blueprint or other viewports."))
+	bool bInstantControlsLevelOnly = true;
+
+	UPROPERTY(Config, EditAnywhere, Category = "General", meta = (DisplayName = "Instant Grab Key",
+		EditCondition = "bInstantBlenderControls",
+		ToolTip = "Key to start a grab/translate transform in Instant Blender Controls mode."))
+	FInputChord InstantTranslationKey = FInputChord(EKeys::G);
+
+	UPROPERTY(Config, EditAnywhere, Category = "General", meta = (DisplayName = "Instant Rotation Key",
+		EditCondition = "bInstantBlenderControls",
+		ToolTip = "Key to start a rotation transform in Instant Blender Controls mode."))
+	FInputChord InstantRotationKey = FInputChord(EKeys::R);
+
+	UPROPERTY(Config, EditAnywhere, Category = "General", meta = (DisplayName = "Instant Scale Key",
+		EditCondition = "bInstantBlenderControls",
+		ToolTip = "Key to start a scale transform in Instant Blender Controls mode."))
+	FInputChord InstantScaleKey = FInputChord(EKeys::S, EModifierKey::Shift);
+
+	UPROPERTY(Config, EditAnywhere, Category = "General", meta = (DisplayName = "Instant Duplicate Key",
+		EditCondition = "bInstantBlenderControls",
+		ToolTip = "Key to duplicate selected actors and immediately enter grab mode in Instant Blender Controls mode."))
+	FInputChord InstantDuplicateKey = FInputChord(EKeys::D, EModifierKey::Shift);
+
 	// Helper methods to get orbit flags
 	bool ShouldOrbitAroundSelection() const { return OrbitMode == EBlend4RealOrbitMode::OrbitAroundSelection; }
 	bool ShouldOrbitAroundMouseHit() const { return OrbitMode == EBlend4RealOrbitMode::OrbitAroundMouseProjection; }

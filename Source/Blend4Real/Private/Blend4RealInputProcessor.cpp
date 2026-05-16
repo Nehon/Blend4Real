@@ -42,9 +42,8 @@ FBlend4RealInputProcessor::~FBlend4RealInputProcessor()
 
 void FBlend4RealInputProcessor::RegisterInputProcessor()
 {
-	if (bIsEnabled && FSlateApplication::IsInitialized())
+	if (FSlateApplication::IsInitialized())
 	{
-		PlatformInputs::InitializeKeyboardLayoutCache();
 		FSlateApplication::Get().RegisterInputPreProcessor(SharedThis(this));
 	}
 }
@@ -58,6 +57,9 @@ void FBlend4RealInputProcessor::Init(TSharedPtr<ILevelEditor>)
 	// This ensures new mode tools load the correct value.
 	GLevelEditorModeTools().SetShowWidget(true);
 	GLevelEditorModeTools().SaveConfig();
+
+	// Always register so we can intercept transform keys (G/R/S) for transient activation even when disabled
+	RegisterInputProcessor();
 
 	// Load saved enabled state from global editor settings (stored in user's AppData, not project)
 	bool bWasEnabled = false;
@@ -76,8 +78,16 @@ void FBlend4RealInputProcessor::UnregisterInputProcessor()
 {
 	if (FSlateApplication::IsInitialized())
 	{
-		PlatformInputs::ShutdownKeyboardLayoutCache();
 		FSlateApplication::Get().UnregisterInputPreProcessor(SharedThis(this));
+	}
+}
+
+void FBlend4RealInputProcessor::EndTransientModeIfActive()
+{
+	if (bTransientMode)
+	{
+		bTransientMode = false;
+		ToggleEnabled();
 	}
 }
 
@@ -110,9 +120,12 @@ void FBlend4RealInputProcessor::ToggleEnabled(const bool bInvalidateRender)
 		{
 			ViewportClient->Invalidate();
 		}
-		else if (GEditor && GEditor->GetActiveViewport())
+		else if (GEditor)
 		{
-			GEditor->GetActiveViewport()->Invalidate();
+			if (FViewport* ActiveViewport = GEditor->GetActiveViewport())
+			{
+				ActiveViewport->Invalidate();
+			}
 		}
 	}
 
@@ -122,13 +135,13 @@ void FBlend4RealInputProcessor::ToggleEnabled(const bool bInvalidateRender)
 
 	if (bIsEnabled)
 	{
-		RegisterInputProcessor();
+		PlatformInputs::InitializeKeyboardLayoutCache();
 		PivotVisualizationController->Enable();
 		UE_LOG(LogTemp, Display, TEXT("Blender Controls: Enabled"));
 	}
 	else
 	{
-		UnregisterInputProcessor();
+		PlatformInputs::ShutdownKeyboardLayoutCache();
 		PivotVisualizationController->Disable();
 		UE_LOG(LogTemp, Display, TEXT("Blender Controls: Disabled"));
 	}
@@ -232,9 +245,52 @@ void FBlend4RealInputProcessor::Tick(const float DeltaTime, FSlateApplication& S
 
 bool FBlend4RealInputProcessor::HandleKeyDownEvent(FSlateApplication& SlateApp, const FKeyEvent& InKeyEvent)
 {
+	// Instant Blender Controls: when disabled, intercept transform keys to activate transient mode.
 	if (!bIsEnabled)
 	{
-		return false;
+		const UBlend4RealSettings* Settings = UBlend4RealSettings::Get();
+		if (!Settings || !Settings->bInstantBlenderControls)
+		{
+			return false;
+		}
+
+		const FVector2D MousePosition = SlateApp.GetCursorPos();
+		const FName ViewportFilter = Settings->bInstantControlsLevelOnly ? FName("SLevelViewport") : NAME_None;
+		if (!Blend4RealUtils::IsMouseOverViewport(MousePosition, ViewportFilter))
+		{
+			return false;
+		}
+
+		if (UBlend4RealSettings::MatchesChord(Settings->InstantDuplicateKey, InKeyEvent))
+		{
+			bTransientMode = true;
+			ToggleEnabled();
+			SelectionActionsController->DuplicateSelectedAndGrab();
+			return true;
+		}
+
+		ETransformMode TransientTransformMode;
+		if (UBlend4RealSettings::MatchesChord(Settings->InstantTranslationKey, InKeyEvent))
+		{
+			TransientTransformMode = ETransformMode::Translation;
+		}
+		else if (UBlend4RealSettings::MatchesChord(Settings->InstantRotationKey, InKeyEvent))
+		{
+			TransientTransformMode = ETransformMode::Rotation;
+		}
+		else if (UBlend4RealSettings::MatchesChord(Settings->InstantScaleKey, InKeyEvent))
+		{
+			TransientTransformMode = ETransformMode::Scale;
+		}
+		else
+		{
+			return false;
+		}
+
+		bTransientMode = true;
+		ToggleEnabled();
+		TransformController->BeginTransform(TransientTransformMode);
+		return true;
 	}
 
 	// Only process input if mouse is over a viewport (not requiring keyboard focus)
@@ -312,6 +368,7 @@ bool FBlend4RealInputProcessor::HandleKeyDownEvent(FSlateApplication& SlateApp, 
 				TransformController->ApplyNumericTransform();
 			}
 			TransformController->EndTransform(true);
+			EndTransientModeIfActive();
 			return true;
 		}
 
@@ -319,6 +376,7 @@ bool FBlend4RealInputProcessor::HandleKeyDownEvent(FSlateApplication& SlateApp, 
 		if (Key == EKeys::Escape && ModMask == 0)
 		{
 			TransformController->EndTransform(false);
+			EndTransientModeIfActive();
 			return true;
 		}
 
@@ -392,7 +450,6 @@ bool FBlend4RealInputProcessor::HandleMouseMoveEvent(FSlateApplication& SlateApp
 	const FVector2D CurrentPosition = MouseEvent.GetScreenSpacePosition();
 	const FVector2D Delta = CurrentPosition - LastMousePosition;
 	LastMousePosition = CurrentPosition;
-
 
 	// For ongoing operations (navigation/transform), continue processing even if mouse moves outside viewport
 	// This ensures smooth camera movement and transforms when mouse drags outside viewport
@@ -502,11 +559,13 @@ bool FBlend4RealInputProcessor::HandleMouseButtonDownEvent(FSlateApplication& Sl
 		if (UBlend4RealSettings::MatchesChord(Settings->ApplyTransformKey, MouseEvent))
 		{
 			TransformController->EndTransform(true);
+			EndTransientModeIfActive();
 			return true;
 		}
 		if (UBlend4RealSettings::MatchesChord(Settings->CancelTransformKey, MouseEvent))
 		{
 			TransformController->EndTransform(false);
+			EndTransientModeIfActive();
 			return true;
 		}
 	}
