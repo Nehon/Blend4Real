@@ -59,6 +59,11 @@ public:
 		ToolTip = "Key to start a scale transform in Instant Blender Controls mode."))
 	FInputChord InstantScaleKey = FInputChord(EKeys::S, EModifierKey::Shift);
 
+	UPROPERTY(Config, EditAnywhere, Category = "General", meta = (DisplayName = "Instant Duplicate Key",
+		EditCondition = "bInstantBlenderControls",
+		ToolTip = "Key to duplicate selected actors and immediately enter grab mode in Instant Blender Controls mode."))
+	FInputChord InstantDuplicateKey = FInputChord(EKeys::D, EModifierKey::Shift);
+
 	// Helper methods to get orbit flags
 	bool ShouldOrbitAroundSelection() const { return OrbitMode == EBlend4RealOrbitMode::OrbitAroundSelection; }
 	bool ShouldOrbitAroundMouseHit() const { return OrbitMode == EBlend4RealOrbitMode::OrbitAroundMouseProjection; }

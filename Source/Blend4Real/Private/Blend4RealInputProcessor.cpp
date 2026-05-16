@@ -261,6 +261,14 @@ bool FBlend4RealInputProcessor::HandleKeyDownEvent(FSlateApplication& SlateApp, 
 			return false;
 		}
 
+		if (UBlend4RealSettings::MatchesChord(Settings->InstantDuplicateKey, InKeyEvent))
+		{
+			bTransientMode = true;
+			ToggleEnabled();
+			SelectionActionsController->DuplicateSelectedAndGrab();
+			return true;
+		}
+
 		ETransformMode TransientTransformMode;
 		if (UBlend4RealSettings::MatchesChord(Settings->InstantTranslationKey, InKeyEvent))
 		{
