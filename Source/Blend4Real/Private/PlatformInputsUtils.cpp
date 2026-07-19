@@ -2,7 +2,12 @@
 
 #include "PlatformInputsUtils.h"
 #if PLATFORM_MAC
+// Carbon's <CarbonCore/NumberFormatting.h> declares `struct FVector`, which collides with
+// UE's `using FVector = UE::Math::TVector<double>`. We don't use Carbon's FVector, so rename
+// it out of the way for the duration of the Carbon include.
+#define FVector CarbonFVector
 #include <Carbon/Carbon.h>  // For UCKeyTranslate, TIS functions
+#undef FVector
 #include "Mac/CocoaThread.h" // For run in main thread
 #elif PLATFORM_WINDOWS
 #include "Windows/AllowWindowsPlatformTypes.h"
